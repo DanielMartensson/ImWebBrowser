@@ -8,11 +8,12 @@
 			"path" : "RelWithDebInfo/ImWebBrowser.pdb"
 		}
 	],
-	"backtrace" : 1,
+	"backtrace" : 2,
 	"backtraceGraph" : 
 	{
 		"commands" : 
 		[
+			"_add_executable",
 			"add_executable",
 			"target_link_libraries",
 			"target_include_directories",
@@ -20,47 +21,60 @@
 		],
 		"files" : 
 		[
+			"C:/Users/danie/Documents/GitHub/vcpkg/scripts/buildsystems/vcpkg.cmake",
 			"CMakeLists.txt"
 		],
 		"nodes" : 
 		[
 			{
-				"file" : 0
+				"file" : 1
 			},
 			{
-				"command" : 0,
-				"file" : 0,
+				"command" : 1,
+				"file" : 1,
 				"line" : 12,
 				"parent" : 0
 			},
 			{
-				"command" : 1,
+				"command" : 0,
 				"file" : 0,
-				"line" : 25,
-				"parent" : 0
+				"line" : 612,
+				"parent" : 1
 			},
 			{
-				"command" : 1,
-				"file" : 0,
-				"line" : 27,
-				"parent" : 0
-			},
-			{
-				"command" : 1,
-				"file" : 0,
-				"line" : 41,
+				"command" : 2,
+				"file" : 1,
+				"line" : 28,
 				"parent" : 0
 			},
 			{
 				"command" : 2,
-				"file" : 0,
-				"line" : 15,
+				"file" : 1,
+				"line" : 30,
+				"parent" : 0
+			},
+			{
+				"command" : 2,
+				"file" : 1,
+				"line" : 44,
+				"parent" : 0
+			},
+			{
+				"command" : 2,
+				"file" : 1,
+				"line" : 54,
 				"parent" : 0
 			},
 			{
 				"command" : 3,
-				"file" : 0,
-				"line" : 47,
+				"file" : 1,
+				"line" : 15,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 1,
+				"line" : 60,
 				"parent" : 0
 			}
 		]
@@ -71,25 +85,25 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "/DWIN32 /D_WINDOWS /EHsc /Zi /O2 /Ob1 /DNDEBUG -std:c++latest -MD -Zi"
+					"fragment" : "/DWIN32 /D_WINDOWS /EHsc /O2 /Ob1 /DNDEBUG -std:c++latest -MD -Zi"
 				}
 			],
 			"includes" : 
 			[
 				{
-					"backtrace" : 5,
+					"backtrace" : 7,
 					"path" : "C:/Users/danie/Documents/GitHub/ImWebBrowser/src"
 				},
 				{
-					"backtrace" : 5,
+					"backtrace" : 7,
 					"path" : "C:/Users/danie/Documents/GitHub/ImWebBrowser/src/libraries/imgui"
 				},
 				{
-					"backtrace" : 5,
+					"backtrace" : 7,
 					"path" : "C:/Users/danie/Documents/GitHub/ImWebBrowser/src/libraries/imgui/backends"
 				},
 				{
-					"backtrace" : 4,
+					"backtrace" : 6,
 					"isSystem" : true,
 					"path" : "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/include"
 				}
@@ -99,7 +113,7 @@
 			{
 				"backtraces" : 
 				[
-					6
+					8
 				],
 				"standard" : "23"
 			},
@@ -112,7 +126,11 @@
 				4,
 				5,
 				6,
-				7
+				7,
+				8,
+				9,
+				10,
+				11
 			]
 		}
 	],
@@ -128,11 +146,11 @@
 		"commandFragments" : 
 		[
 			{
-				"fragment" : "/DWIN32 /D_WINDOWS /EHsc /Zi /O2 /Ob1 /DNDEBUG -MD -Zi",
+				"fragment" : "/DWIN32 /D_WINDOWS /EHsc /O2 /Ob1 /DNDEBUG -MD -Zi",
 				"role" : "flags"
 			},
 			{
-				"fragment" : "/machine:x64 /debug /INCREMENTAL",
+				"fragment" : "/debug /INCREMENTAL",
 				"role" : "flags"
 			},
 			{
@@ -140,28 +158,33 @@
 				"role" : "flags"
 			},
 			{
-				"backtrace" : 2,
-				"fragment" : "C:\\Users\\danie\\Documents\\GitHub\\vcpkg\\installed\\x64-windows\\lib\\SDL3.lib",
-				"role" : "libraries"
-			},
-			{
 				"backtrace" : 3,
-				"fragment" : "imm32.lib",
-				"role" : "libraries"
-			},
-			{
-				"backtrace" : 3,
-				"fragment" : "winmm.lib",
-				"role" : "libraries"
-			},
-			{
-				"backtrace" : 3,
-				"fragment" : "version.lib",
+				"fragment" : "C:\\Users\\danie\\Documents\\GitHub\\vcpkg\\installed\\x64-windows\\debug\\lib\\SDL3.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 4,
-				"fragment" : "C:\\Users\\danie\\Documents\\GitHub\\vcpkg\\installed\\x64-windows\\lib\\vulkan-1.lib",
+				"fragment" : "imm32.lib",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 4,
+				"fragment" : "winmm.lib",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 4,
+				"fragment" : "version.lib",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 5,
+				"fragment" : "opengl32.lib",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 6,
+				"fragment" : "C:\\Users\\danie\\Documents\\GitHub\\vcpkg\\installed\\x64-windows\\debug\\lib\\vulkan-1.lib",
 				"role" : "libraries"
 			},
 			{
@@ -191,58 +214,86 @@
 				4,
 				5,
 				6,
-				7
+				7,
+				8,
+				9,
+				10,
+				11
 			]
 		}
 	],
 	"sources" : 
 	[
 		{
-			"backtrace" : 1,
+			"backtrace" : 2,
+			"compileGroupIndex" : 0,
+			"path" : "src/im_web_browser.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 2,
+			"compileGroupIndex" : 0,
+			"path" : "src/libraries/imgui/backends/imgui_impl_opengl3.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 2,
 			"compileGroupIndex" : 0,
 			"path" : "src/libraries/imgui/backends/imgui_impl_sdl3.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 1,
+			"backtrace" : 2,
 			"compileGroupIndex" : 0,
 			"path" : "src/libraries/imgui/backends/imgui_impl_vulkan.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 1,
+			"backtrace" : 2,
 			"compileGroupIndex" : 0,
 			"path" : "src/libraries/imgui/imgui.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 1,
+			"backtrace" : 2,
 			"compileGroupIndex" : 0,
 			"path" : "src/libraries/imgui/imgui_demo.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 1,
+			"backtrace" : 2,
 			"compileGroupIndex" : 0,
 			"path" : "src/libraries/imgui/imgui_draw.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 1,
+			"backtrace" : 2,
 			"compileGroupIndex" : 0,
 			"path" : "src/libraries/imgui/imgui_tables.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 1,
+			"backtrace" : 2,
 			"compileGroupIndex" : 0,
 			"path" : "src/libraries/imgui/imgui_widgets.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{
-			"backtrace" : 1,
+			"backtrace" : 2,
 			"compileGroupIndex" : 0,
 			"path" : "src/main.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 2,
+			"compileGroupIndex" : 0,
+			"path" : "src/opengl_run.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 2,
+			"compileGroupIndex" : 0,
+			"path" : "src/vulkan_run.cpp",
 			"sourceGroupIndex" : 0
 		}
 	],

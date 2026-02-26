@@ -143,7 +143,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/Zi /Ob0 /Od /RTC1"
+			"value" : "/Ob0 /Od"
 		},
 		{
 			"name" : "CMAKE_CXX_FLAGS_MINSIZEREL",
@@ -191,7 +191,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/Zi /O2 /Ob1 /DNDEBUG"
+			"value" : "/O2 /Ob1 /DNDEBUG"
 		},
 		{
 			"name" : "CMAKE_CXX_STANDARD_LIBRARIES",
@@ -235,7 +235,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/machine:x64"
+			"value" : ""
 		},
 		{
 			"name" : "CMAKE_EXE_LINKER_FLAGS_DEBUG",
@@ -451,7 +451,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/machine:x64"
+			"value" : ""
 		},
 		{
 			"name" : "CMAKE_MODULE_LINKER_FLAGS_DEBUG",
@@ -763,7 +763,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/machine:x64"
+			"value" : ""
 		},
 		{
 			"name" : "CMAKE_SHARED_LINKER_FLAGS_DEBUG",
@@ -875,7 +875,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/machine:x64"
+			"value" : ""
 		},
 		{
 			"name" : "CMAKE_STATIC_LINKER_FLAGS_DEBUG",
@@ -946,11 +946,15 @@
 			"properties" : 
 			[
 				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
 					"name" : "HELPSTRING",
-					"value" : "No help, variable specified on the command line."
+					"value" : "The CMake toolchain file"
 				}
 			],
-			"type" : "STRING",
+			"type" : "FILEPATH",
 			"value" : "C:/Users/danie/Documents/GitHub/vcpkg/scripts/buildsystems/vcpkg.cmake"
 		},
 		{
@@ -970,16 +974,16 @@
 			"value" : "FALSE"
 		},
 		{
-			"name" : "CONFIG",
+			"name" : "FIND_PACKAGE_MESSAGE_DETAILS_OpenGL",
 			"properties" : 
 			[
 				{
 					"name" : "HELPSTRING",
-					"value" : "Path to a library."
+					"value" : "Details about finding OpenGL"
 				}
 			],
-			"type" : "FILEPATH",
-			"value" : "CONFIG-NOTFOUND"
+			"type" : "INTERNAL",
+			"value" : "[opengl32][ ][v()]"
 		},
 		{
 			"name" : "FIND_PACKAGE_MESSAGE_DETAILS_Vulkan",
@@ -991,7 +995,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "[C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/lib/vulkan-1.lib][C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/include][ missing components: glslc glslangValidator][v1.4.335()]"
+			"value" : "[C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/debug/lib/vulkan-1.lib][C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/include][ missing components: glslc glslangValidator][v1.4.335()]"
 		},
 		{
 			"name" : "ImWebBrowser_BINARY_DIR",
@@ -1030,18 +1034,6 @@
 			"value" : "C:/Users/danie/Documents/GitHub/ImWebBrowser"
 		},
 		{
-			"name" : "LIBSDL3_DIR",
-			"properties" : 
-			[
-				{
-					"name" : "HELPSTRING",
-					"value" : "The directory containing a CMake configuration file for LIBSDL3."
-				}
-			],
-			"type" : "PATH",
-			"value" : "LIBSDL3_DIR-NOTFOUND"
-		},
-		{
 			"name" : "LIBSDL3_LIBRARY",
 			"properties" : 
 			[
@@ -1051,43 +1043,87 @@
 				}
 			],
 			"type" : "FILEPATH",
-			"value" : "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/lib/SDL3.lib"
+			"value" : "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/debug/lib/SDL3.lib"
 		},
 		{
-			"name" : "SDL2_DIR",
+			"name" : "OPENGL_gl_LIBRARY",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "OpenGL library for win32"
+				}
+			],
+			"type" : "STRING",
+			"value" : "opengl32"
+		},
+		{
+			"name" : "OPENGL_glu_LIBRARY",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "GLU library for win32"
+				}
+			],
+			"type" : "STRING",
+			"value" : "glu32"
+		},
+		{
+			"name" : "VCPKG_APPLOCAL_DEPS",
 			"properties" : 
 			[
 				{
 					"name" : "HELPSTRING",
-					"value" : "The directory containing a CMake configuration file for SDL2."
+					"value" : "Automatically copy dependencies into the output directory for executables."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "ON"
+		},
+		{
+			"name" : "VCPKG_INSTALLED_DIR",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "The directory which contains the installed libraries for each triplet"
 				}
 			],
 			"type" : "PATH",
-			"value" : "SDL2_DIR-NOTFOUND"
+			"value" : "C:/Users/danie/Documents/GitHub/vcpkg/installed"
 		},
 		{
-			"name" : "SDL3",
+			"name" : "VCPKG_MANIFEST_DIR",
 			"properties" : 
 			[
 				{
 					"name" : "HELPSTRING",
-					"value" : "Path to a library."
-				}
-			],
-			"type" : "FILEPATH",
-			"value" : "SDL3-NOTFOUND"
-		},
-		{
-			"name" : "SDL3_DIR",
-			"properties" : 
-			[
-				{
-					"name" : "HELPSTRING",
-					"value" : "The directory containing a CMake configuration file for SDL3."
+					"value" : "The path to the vcpkg manifest directory."
 				}
 			],
 			"type" : "PATH",
-			"value" : "SDL3_DIR-NOTFOUND"
+			"value" : ""
+		},
+		{
+			"name" : "VCPKG_MANIFEST_INSTALL",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Install the dependencies listed in your manifest:\n    If this is off, you will have to manually install your dependencies.\n    See https://github.com/microsoft/vcpkg/tree/master/docs/specifications/manifests.md for more info.\n"
+				}
+			],
+			"type" : "INTERNAL",
+			"value" : "OFF"
 		},
 		{
 			"name" : "VCPKG_MANIFEST_MODE",
@@ -1095,11 +1131,35 @@
 			[
 				{
 					"name" : "HELPSTRING",
-					"value" : "No help, variable specified on the command line."
+					"value" : "Use manifest mode, as opposed to classic mode."
 				}
 			],
-			"type" : "UNINITIALIZED",
+			"type" : "BOOL",
 			"value" : "OFF"
+		},
+		{
+			"name" : "VCPKG_PREFER_SYSTEM_LIBS",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Appends the vcpkg paths to CMAKE_PREFIX_PATH, CMAKE_LIBRARY_PATH and CMAKE_FIND_ROOT_PATH so that vcpkg libraries/packages are found after toolchain/system libraries/packages."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "VCPKG_SETUP_CMAKE_PROGRAM_PATH",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Enable the setup of CMAKE_PROGRAM_PATH to vcpkg paths"
+				}
+			],
+			"type" : "BOOL",
+			"value" : "ON"
 		},
 		{
 			"name" : "VCPKG_TARGET_TRIPLET",
@@ -1107,11 +1167,39 @@
 			[
 				{
 					"name" : "HELPSTRING",
-					"value" : "No help, variable specified on the command line."
+					"value" : "Vcpkg target triplet (ex. x86-windows)"
 				}
 			],
-			"type" : "UNINITIALIZED",
+			"type" : "STRING",
 			"value" : "x64-windows"
+		},
+		{
+			"name" : "VCPKG_TRACE_FIND_PACKAGE",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Trace calls to find_package()"
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "VCPKG_VERBOSE",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "Enables messages from the VCPKG toolchain for debugging purposes."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
 		},
 		{
 			"name" : "Vulkan_GLSLANG_VALIDATOR_EXECUTABLE",
@@ -1175,7 +1263,103 @@
 				}
 			],
 			"type" : "FILEPATH",
-			"value" : "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/lib/vulkan-1.lib"
+			"value" : "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/debug/lib/vulkan-1.lib"
+		},
+		{
+			"name" : "X_VCPKG_APPLOCAL_DEPS_INSTALL",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "(experimental) Automatically copy dependencies into the install target directory for executables. Requires CMake 3.14."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "X_VCPKG_APPLOCAL_DEPS_SERIALIZED",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "(experimental) Add USES_TERMINAL to VCPKG_APPLOCAL_DEPS to force serialization."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "Z_VCPKG_BUILTIN_POWERSHELL_PATH",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Path to a program."
+				}
+			],
+			"type" : "FILEPATH",
+			"value" : "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+		},
+		{
+			"name" : "Z_VCPKG_CHECK_MANIFEST_MODE",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Making sure VCPKG_MANIFEST_MODE doesn't change"
+				}
+			],
+			"type" : "INTERNAL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "Z_VCPKG_POWERSHELL_PATH",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "The path to the PowerShell implementation to use."
+				}
+			],
+			"type" : "INTERNAL",
+			"value" : "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+		},
+		{
+			"name" : "Z_VCPKG_PWSH_PATH",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Path to a program."
+				}
+			],
+			"type" : "FILEPATH",
+			"value" : "Z_VCPKG_PWSH_PATH-NOTFOUND"
+		},
+		{
+			"name" : "Z_VCPKG_ROOT_DIR",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Vcpkg root directory"
+				}
+			],
+			"type" : "INTERNAL",
+			"value" : "C:/Users/danie/Documents/GitHub/vcpkg"
+		},
+		{
+			"name" : "_VCPKG_INSTALLED_DIR",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "The directory which contains the installed libraries for each triplet"
+				}
+			],
+			"type" : "PATH",
+			"value" : "C:/Users/danie/Documents/GitHub/vcpkg/installed"
 		}
 	],
 	"kind" : "cache",

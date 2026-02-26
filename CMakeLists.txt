@@ -18,6 +18,9 @@ target_include_directories(ImWebBrowser PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui/backends"
 )
 
+# Kompilera med Vulkan - Annars OpenGL3
+#target_compile_definitions(ImWebBrowser PRIVATE USE_VULKAN)
+
 # Länka mot SDL3
 find_library(LIBSDL3_LIBRARY NAMES SDL3)
 if (LIBSDL3_LIBRARY)
@@ -32,6 +35,16 @@ if (LIBSDL3_LIBRARY)
     endif()
 else()
     message(FATAL_ERROR "SDL3 library not found")
+endif()
+
+# Länka mot OpenGL
+find_package(OpenGL REQUIRED)
+if (OpenGL_FOUND)
+    message(STATUS "OpenGL library found")
+    target_link_libraries(ImWebBrowser PRIVATE OpenGL::GL)
+    target_include_directories(ImWebBrowser PRIVATE ${OPENGL_INCLUDE_DIR})
+else()
+    message(FATAL_ERROR "OpenGL library not found")
 endif()
 
 # Länka mot Vulkan
