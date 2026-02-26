@@ -6,5 +6,9 @@
     "cmake.configureArgs": [
         "-DVCPKG_MANIFEST_MODE=OFF",
         "-DVCPKG_TARGET_TRIPLET=x64-windows"
-    ]
+    ],
+    "cmake.configureSettings": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/Users/danie/Documents/GitHub/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "CMAKE_PREFIX_PATH": "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows"
+    },
 }

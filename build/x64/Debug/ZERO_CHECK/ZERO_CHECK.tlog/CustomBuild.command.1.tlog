@@ -1,0 +1,10 @@
+^C:\USERS\DANIE\DOCUMENTS\GITHUB\IMWEBBROWSER\BUILD\CMAKEFILES\AF2D6E6A5E7F44FF11805132164A356A\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/danie/Documents/GitHub/ImWebBrowser -BC:/Users/danie/Documents/GitHub/ImWebBrowser/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/danie/Documents/GitHub/ImWebBrowser/build/ImWebBrowser.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

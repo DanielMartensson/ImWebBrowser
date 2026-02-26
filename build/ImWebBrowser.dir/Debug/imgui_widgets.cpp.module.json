@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "ImWebBrowser.dir\\Debug\\imgui_widgets.obj",
+            "outputs": [
+                "C:\\Users\\danie\\Documents\\GitHub\\ImWebBrowser\\build\\ImWebBrowser.dir\\Debug\\vc143.pdb",
+                "ImWebBrowser.dir\\Debug\\"
+            ],
+            "requires": []
+        }
+    ]
+}
