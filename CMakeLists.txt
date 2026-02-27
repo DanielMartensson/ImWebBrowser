@@ -4,7 +4,7 @@ project(ImWebBrowser LANGUAGES CXX)
 # Globba alla .cpp i src + imgui + backends
 file(GLOB_RECURSE ALL_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/browser/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui/backends/*.cpp"
 )
@@ -14,6 +14,7 @@ add_executable(ImWebBrowser ${ALL_SOURCE_FILES})
 # Include paths
 target_include_directories(ImWebBrowser PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/browser"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui/backends"
 )
