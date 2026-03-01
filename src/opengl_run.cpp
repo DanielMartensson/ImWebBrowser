@@ -134,14 +134,14 @@ int opengl_run()
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Main loop
-    bool done = false;
+    bool exit_browser = false;
 #ifdef __EMSCRIPTEN__
     // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
     // You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
     io.IniFilename = nullptr;
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
-    while (!done)
+    while (!exit_browser)
 #endif
     {
         // Poll and handle events (inputs, window resize, etc.)
@@ -155,9 +155,9 @@ int opengl_run()
         {
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT)
-                done = true;
+                exit_browser = true;
             if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
-                done = true;
+                exit_browser = true;
         }
 
         // [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppIterate() function]
@@ -173,7 +173,7 @@ int opengl_run()
         ImGui::NewFrame();
 
         // Run the web browser
-        im_web_browser();
+        im_web_browser(&exit_browser);
 
         // Rendering
         ImGui::Render();

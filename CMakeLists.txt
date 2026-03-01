@@ -5,6 +5,7 @@ project(ImWebBrowser LANGUAGES CXX)
 file(GLOB_RECURSE ALL_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/browser/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/browser/pages/youtube.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui/backends/*.cpp"
 )
@@ -15,6 +16,8 @@ add_executable(ImWebBrowser ${ALL_SOURCE_FILES})
 target_include_directories(ImWebBrowser PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/browser"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/browser/pages"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/browser/pages/youtube"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libraries/imgui/backends"
 )

@@ -8,4 +8,4 @@ The main focus with this project is to build a web browser that runs on GPU as m
 - OpenGL3/ES
 - SDL3
 - Wayland
-- WPE WebKit
+- APIs

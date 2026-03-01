@@ -4,6 +4,9 @@
     <ClCompile Include="C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\im_web_browser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube\youtube.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends\imgui_impl_opengl3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

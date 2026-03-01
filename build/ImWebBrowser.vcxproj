@@ -91,7 +91,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/include"</AdditionalOptions>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -115,10 +115,10 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -156,7 +156,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/include"</AdditionalOptions>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -181,10 +181,10 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -222,7 +222,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/include"</AdditionalOptions>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -247,10 +247,10 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -288,7 +288,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Users/danie/Documents/GitHub/vcpkg/installed/x64-windows/include"</AdditionalOptions>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -312,10 +312,10 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\danie\Documents\GitHub\ImWebBrowser\src;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui;C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends;C:\Users\danie\Documents\GitHub\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -410,6 +410,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\im_web_browser.cpp" />
+    <ClCompile Include="C:\Users\danie\Documents\GitHub\ImWebBrowser\src\browser\pages\youtube\youtube.cpp" />
     <ClCompile Include="C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends\imgui_impl_opengl3.cpp" />
     <ClCompile Include="C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends\imgui_impl_sdl3.cpp" />
     <ClCompile Include="C:\Users\danie\Documents\GitHub\ImWebBrowser\src\libraries\imgui\backends\imgui_impl_vulkan.cpp" />

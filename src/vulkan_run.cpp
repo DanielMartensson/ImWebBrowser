@@ -451,8 +451,8 @@ int vulkan_run()
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Main loop
-    bool done = false;
-    while (!done)
+    bool exit_browser = false;
+    while (!exit_browser)
     {
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
@@ -465,9 +465,9 @@ int vulkan_run()
         {
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT)
-                done = true;
+                exit_browser = true;
             if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
-                done = true;
+                exit_browser = true;
         }
 
         // [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppIterate() function]
@@ -494,7 +494,7 @@ int vulkan_run()
         ImGui::NewFrame();
 
         // Run the web browser
-        im_web_browser();
+        im_web_browser(&exit_browser);
 
         // Rendering
         ImGui::Render();
