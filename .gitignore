@@ -1,0 +1,14 @@
+# Build artifacts
+/build/
+
+# CMake generated header (created at configure time)
+/build/config_defaults.h
+
+# IDE / editor
+/.vscode/
+/.cache/
+compile_commands.json
+
+# OS clutter
+.DS_Store
+Thumbs.db

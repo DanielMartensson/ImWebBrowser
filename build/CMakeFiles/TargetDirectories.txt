@@ -1,3 +1,0 @@
-C:/Users/danie/Documents/GitHub/ImWebBrowser/build/CMakeFiles/ImWebBrowser.dir
-C:/Users/danie/Documents/GitHub/ImWebBrowser/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/danie/Documents/GitHub/ImWebBrowser/build/CMakeFiles/ZERO_CHECK.dir
