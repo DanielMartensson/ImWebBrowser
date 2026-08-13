@@ -136,11 +136,19 @@ const std::array<uint32_t, kScancodeCount> kScancodeToEvdev = build_keymap();
 
 } /* namespace */
 
+/* Linux evdev <-> XKB keycode offset. libwpe's
+ * wpe_input_xkb_context_get_key_code() consumes the *XKB* keycode, which is
+ * the evdev keycode plus 8 — that is the same convention the X.org server and
+ * Wayland compositors use to key xkb_state. Returning the raw evdev code
+ * here shifts every key by 8 (e.g. BackSpace (evdev 14 = XKB "5") yields the
+ * digit 5), so the +8 is applied before handing the code to WPE. */
+constexpr uint32_t kXkbKeycodeOffset = 8;
+
 uint32_t keymap_evdev_from_scancode(SDL_Scancode scancode)
 {
     if (scancode < 0 || scancode >= static_cast<int>(kScancodeToEvdev.size()))
         return 0;
-    return kScancodeToEvdev[static_cast<std::size_t>(scancode)];
+    return kScancodeToEvdev[static_cast<std::size_t>(scancode)] + kXkbKeycodeOffset;
 }
 
 } /* namespace imwb */
