@@ -68,8 +68,29 @@ For the optional Vulkan backend: `libvulkan-dev`.
 | `IMWEBBROWSER_ENABLE_DEVELOPER_EXTRAS` | `OFF` | Enable the Web Inspector |
 | `IMWEBBROWSER_ENABLE_SANDBOX` | `ON` | Enable the WebKit sandbox |
 | `IMWEBBROWSER_ENABLE_SMOOTH_SCROLLING` | `ON` | Prefer smooth pixel axis scrolling |
+| `IMWEBBROWSER_ENABLE_ENCRYPTED_MEDIA` | `ON` | Enable Encrypted Media Extensions (DRM) |
+| `IMWEBBROWSER_ENABLE_PAGE_CACHE` | `ON` | Enable the back/forward page cache |
+| `IMWEBBROWSER_ENABLE_DNS_PREFETCHING` | `ON` | Enable DNS prefetching of links |
+| `IMWEBBROWSER_ENABLE_SPATIAL_NAVIGATION` | `OFF` | Enable arrow-key spatial navigation |
+| `IMWEBBROWSER_ENABLE_CARET_BROWSING` | `OFF` | Enable caret browsing mode |
+| `IMWEBBROWSER_ENABLE_TABS_TO_LINKS` | `ON` | Allow Tab to focus page links |
+| `IMWEBBROWSER_ENABLE_XSS_AUDITOR` | `ON` | Enable the XSS auditor |
+| `IMWEBBROWSER_ENABLE_SITE_SPECIFIC_QUIRKS` | `ON` | Apply per-site compatibility quirks |
+| `IMWEBBROWSER_ENABLE_OFFLINE_APP_CACHE` | `OFF` | Enable the legacy offline app cache |
+| `IMWEBBROWSER_ENABLE_FRAME_FLATTENING` | `OFF` | Flatten embedded frames to page width |
+| `IMWEBBROWSER_ENABLE_PLUGINS` | `OFF` | Enable plugins (NPAPI) |
+| `IMWEBBROWSER_ENABLE_JAVA` | `OFF` | Enable Java support |
+| `IMWEBBROWSER_ENABLE_HTML5_DATABASE` | `ON` | Enable HTML5 databases |
+| `IMWEBBROWSER_ENABLE_HYPERLINK_AUDITING` | `OFF` | Enable hyperlink auditing (ping) |
+| `IMWEBBROWSER_ENABLE_RESIZABLE_TEXT_AREAS` | `ON` | Allow text areas to be resized |
+| `IMWEBBROWSER_ENABLE_MOCK_CAPTURE_DEVICES` | `OFF` | Enable mock capture devices |
+| `IMWEBBROWSER_ENABLE_CONSOLE_TO_STDOUT` | `OFF` | Write page console messages to stdout |
+| `IMWEBBROWSER_ENABLE_ACCELERATED_2D_CANVAS` | `ON` | Enable accelerated 2D canvas |
 | `IMWEBBROWSER_TRACE_LOGGING` | `OFF` | Compile with trace-level logging |
 | `IMWEBBROWSER_INSTALL` | `ON` | Install the `imwebbrowser` binary |
+
+Note: a few toggles (plugins, Java, offline app cache, mock capture devices) are
+no-ops if the distro's `libwpewebkit` was built without those features.
 
 ## Run
 
@@ -91,6 +112,24 @@ For the optional Vulkan backend: `libvulkan-dev`.
 | `--developer-extras` | Enable the Web Inspector |
 | `--no-sandbox` | Disable the WebKit sandbox |
 | `--no-smooth-scrolling` | Use discrete (not smooth) wheel scrolling |
+| `--no-encrypted-media` | Disable Encrypted Media Extensions (DRM) |
+| `--no-page-cache` | Disable the back/forward page cache |
+| `--no-dns-prefetching` | Disable DNS prefetching |
+| `--no-spatial-navigation` | Disable arrow-key spatial navigation |
+| `--no-caret-browsing` | Disable caret browsing mode |
+| `--no-tabs-to-links` | Disable Tab focusing page links |
+| `--no-xss-auditor` | Disable the XSS auditor |
+| `--no-site-specific-quirks` | Disable per-site compatibility quirks |
+| `--no-offline-app-cache` | Disable the legacy offline app cache |
+| `--no-frame-flattening` | Disable frame flattening |
+| `--no-plugins` | Disable plugins (NPAPI) |
+| `--no-java` | Disable Java support |
+| `--no-html5-database` | Disable HTML5 databases |
+| `--no-hyperlink-auditing` | Disable hyperlink auditing (ping) |
+| `--no-resizable-text-areas` | Disable text area resizing |
+| `--no-mock-capture-devices` | Disable mock capture devices |
+| `--no-console-to-stdout` | Do not write console messages to stdout |
+| `--no-accelerated-2d-canvas` | Disable accelerated 2D canvas |
 | `--log-level=<lvl>` | `trace` \| `debug` \| `info` \| `warn` \| `error` |
 
 ### Keyboard shortcuts
