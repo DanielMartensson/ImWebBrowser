@@ -12,6 +12,8 @@
 
 #include <SDL3/SDL.h>
 
+#include "input/xkb_layout.h"
+
 struct wpe_view_backend;
 
 namespace imwb {
@@ -42,6 +44,9 @@ public:
     /* Route one SDL event. Returns true if it was consumed by the web view. */
     bool handle_event(const SDL_Event& event);
 
+    /* Initialise the XKB keymap from the system layout. Call once at startup. */
+    bool initialize_xkb() { return m_xkb.initialize(); }
+
 private:
     void dispatch_keyboard(SDL_Scancode scancode, uint16_t sdl_mods, bool pressed, bool repeat);
     void dispatch_pointer_motion(float x, float y, uint16_t sdl_mods);
@@ -62,6 +67,7 @@ private:
     /* Buttons currently held, as wpe_input_pointer_modifier bits. */
     uint32_t m_pressed_buttons = 0;
     bool m_smooth_scrolling = true;
+    XkbLayout m_xkb;
 };
 
 } /* namespace imwb */

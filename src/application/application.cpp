@@ -2,6 +2,9 @@
 
 #include "application/application.h"
 
+#include <cstdio>
+#include <cstring>
+
 #include <imgui.h>
 #include <backends/imgui_impl_sdl3.h>
 
@@ -35,11 +38,62 @@ Renderer* create_renderer()
 #endif
 }
 
+/* Propagate the system's X11 keyboard layout to libxkbcommon so WPE's XKB
+ * context uses the same keymap as the desktop. libxkbcommon reads RMLVO from
+ * the XKB_DEFAULT_* env vars (or falls back to "us"); under X11 those are
+ * usually unset, so we query `setxkbmap -query` and set them ourselves. */
+void propagate_xkb_layout()
+{
+    if (std::getenv("XKB_DEFAULT_LAYOUT"))
+        return; /* Respect an explicit override. */
+
+    FILE* pipe = popen("setxkbmap -query 2>/dev/null", "r");
+    if (!pipe)
+        return;
+
+    char line[256];
+    while (std::fgets(line, sizeof(line), pipe)) {
+        char* colon = std::strchr(line, ':');
+        if (!colon)
+            continue;
+        *colon = '\0';
+        char* val = colon + 1;
+        while (*val == ' ' || *val == '\t')
+            ++val;
+        /* Strip trailing whitespace / newline. */
+        size_t len = std::strlen(val);
+        while (len > 0 && (val[len - 1] == '\n' || val[len - 1] == ' ' || val[len - 1] == '\t'))
+            val[--len] = '\0';
+        if (len == 0)
+            continue;
+
+        if (std::strcmp(line, "rules") == 0)
+            setenv("XKB_DEFAULT_RULES", val, 1);
+        else if (std::strcmp(line, "model") == 0)
+            setenv("XKB_DEFAULT_MODEL", val, 1);
+        else if (std::strcmp(line, "layout") == 0)
+            setenv("XKB_DEFAULT_LAYOUT", val, 1);
+        else if (std::strcmp(line, "variant") == 0)
+            setenv("XKB_DEFAULT_VARIANT", val, 1);
+        else if (std::strcmp(line, "options") == 0)
+            setenv("XKB_DEFAULT_OPTIONS", val, 1);
+    }
+    pclose(pipe);
+
+    LOG_INFO("XKB layout: %s (variant %s, model %s, rules %s)",
+             std::getenv("XKB_DEFAULT_LAYOUT") ? std::getenv("XKB_DEFAULT_LAYOUT") : "?",
+             std::getenv("XKB_DEFAULT_VARIANT") ? std::getenv("XKB_DEFAULT_VARIANT") : "",
+             std::getenv("XKB_DEFAULT_MODEL") ? std::getenv("XKB_DEFAULT_MODEL") : "?",
+             std::getenv("XKB_DEFAULT_RULES") ? std::getenv("XKB_DEFAULT_RULES") : "?");
+}
+
 } /* namespace */
 
 bool Application::initialize(const Config& config)
 {
     m_config = config;
+
+    propagate_xkb_layout();
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         LOG_ERROR("SDL_Init failed: %s", SDL_GetError());
@@ -74,6 +128,7 @@ bool Application::initialize(const Config& config)
     m_input.set_view_backend(m_browser.page().view_backend());
     m_input.set_view_geometry(0, 0, config.window_width, config.window_height, 1.0f);
     m_input.set_smooth_scrolling(config.smooth_scrolling);
+    m_input.initialize_xkb();
 
     m_browser.page().load_uri(config.startup_url.empty() ? "about:blank" : config.startup_url);
 

@@ -87,10 +87,9 @@ void InputTranslator::dispatch_keyboard(SDL_Scancode scancode, uint16_t sdl_mods
     if (hardware_key_code == 0)
         return;
 
-    /* Let libwpe map the hardware code to an XKB key code (handles dead
-     * keys and layout state), then dispatch. */
-    struct wpe_input_xkb_context* xkb = wpe_input_xkb_context_get_default();
-    const uint32_t key_code = wpe_input_xkb_context_get_key_code(xkb, hardware_key_code, pressed);
+    /* Use our own XKB keymap (system layout) instead of libwpe's hardcoded
+     * "us" layout. This returns the keysym matching the desktop layout. */
+    const uint32_t key_code = m_xkb.keysym_for_keycode(hardware_key_code, pressed);
 
     struct wpe_input_keyboard_event event{};
     event.time = SDL_GetTicks();

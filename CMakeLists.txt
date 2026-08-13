@@ -110,6 +110,7 @@ pkg_check_modules(WPE REQUIRED IMPORTED_TARGET wpe-1.0)
 pkg_check_modules(WPE_FDO REQUIRED IMPORTED_TARGET wpebackend-fdo-1.0)
 pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0 gobject-2.0)
 pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)
+pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
 pkg_check_modules(WAYLAND_SERVER REQUIRED IMPORTED_TARGET wayland-server)
 
 if(IMWEBBROWSER_ACTIVE_BACKEND STREQUAL "opengles")
@@ -162,10 +163,12 @@ add_library(imwb_input STATIC
     src/input/keymap.cpp
     src/input/keymap.h
     src/input/input_translator.cpp
-    src/input/input_translator.h)
+    src/input/input_translator.h
+    src/input/xkb_layout.cpp
+    src/input/xkb_layout.h)
 target_include_directories(imwb_input PUBLIC src)
 target_link_libraries(imwb_input PUBLIC
-    imwb_logging SDL3::SDL3 PkgConfig::WPE)
+    imwb_logging SDL3::SDL3 PkgConfig::WPE PkgConfig::XKBCOMMON)
 
 add_library(imwb_rendering STATIC
     src/rendering/renderer.h
