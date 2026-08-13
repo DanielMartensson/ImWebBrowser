@@ -11,6 +11,14 @@ The UI chrome (back / forward / reload / kiosk, address bar and a fixed-width
 loading-progress indicator) is drawn with Dear ImGui on top of the web-view
 texture. The OS window title mirrors the live page title.
 
+## Demo
+
+![ImWebBrowser running the GeForce NOW page](assets/demo-nvidia.gif)
+
+The web process composites the page into dmabuf/EGL buffers that the host renders
+through OpenGL ES, here showing the dark GeForce NOW marketing page with the
+toolbar (Back / Fwd / Reload / Kiosk, address bar, loading-progress).
+
 ## Status
 
 Tested on a Lenovo ThinkPad W540 (Intel HD 4600, crocus) running Linux Mint 22.3
