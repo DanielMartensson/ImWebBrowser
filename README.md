@@ -31,6 +31,10 @@ with Mesa 25.2.8 and WPE WebKit 2.38. Real content renders and is interactive on
 
 The keyboard layout follows the system XKB keymap (Swedish on the test machine).
 
+Primary deployment target: **STM32MP2 microprocessors** (Arm Cortex-A35 +
+Mali-G57). The codebase is architecture-neutral and cross-compiles from an
+x86-64 host; see [Cross-compiling for STM32MP2](#cross-compiling-for-stm32mp2).
+
 ## Build
 
 > Build with a single job on constrained machines:
@@ -91,6 +95,70 @@ For the optional Vulkan backend: `libvulkan-dev`.
 
 Note: a few toggles (plugins, Java, offline app cache, mock capture devices) are
 no-ops if the distro's `libwpewebkit` was built without those features.
+
+## Cross-compiling for STM32MP2
+
+ImWebBrowser targets STMicroelectronics STM32MP2 (STM32MP25x) boards running
+OpenSTLinux: Arm Cortex-A35 CPU and a Mali-G57 GPU driven by Mesa's Panfrost
+(OpenGL ES) or the BSP's Vulkan stack. Nothing in the code is
+architecture-specific, so the same sources cross-compile from any x86-64 host.
+
+### Target runtime dependencies
+
+The STM32MP2 sysroot must provide these packages (from the OpenSTLinux/Yocto
+BSP or your distro's `lib`/`-dev` packages):
+
+| Component        | Purpose                                            |
+| ---------------- | -------------------------------------------------- |
+| `libsdl3-dev`    | Window, input, GL context (X11/Wayland/KMSDRM)     |
+| `libwpe-1.0-dev` | WPE base library                                   |
+| `libwpebackend-fdo-1.0-dev` | Frame export (EGL image / dmabuf)       |
+| `libwpewebkit-2.0-dev` (or `-1.1`) | WebKit engine                    |
+| `libegl-dev` `libgles2-dev` | GLES 3.x (Mesa/panfrost)          |
+| `libwayland-dev` | wpebackend-fdo + SDL3 Wayland backend              |
+| `libxkbcommon-dev` | Keyboard layout                                   |
+| `libglib2.0-dev` | GLib/gobject (WebKit + GLib main loop)             |
+| `libvulkan-dev` (optional) | Only for `IMWEBBROWSER_BACKEND_VULKAN=ON`   |
+
+### Option A — Yocto SDK cross-toolchain (recommended)
+
+Install the OpenSTLinux SDK for STM32MP2 and source its environment script so
+`OECORE_TARGET_SYSROOT` and the target `pkg-config` are on PATH:
+
+    source /opt/st/stm32mp2/<ver>/environment-setup-cortexa35-poky-linux
+
+Then configure with the bundled toolchain file:
+
+    cmake -S . -B build-stm32mp2 \
+        -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/STM32MP2-armv8a.cmake \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DIMWEBBROWSER_BACKEND_OPENGL_ES=ON
+    cmake --build build-stm32mp2 --parallel 1
+
+### Option B — standalone aarch64 toolchain + sysroot
+
+    cmake -S . -B build-stm32mp2 \
+        -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/STM32MP2-armv8a.cmake \
+        -DSTM32MP2_SYSROOT=/path/to/stm32mp2/sysroot \
+        -DSTM32MP2_CROSS_COMPILE=/usr/bin/aarch64-linux-gnu- \
+        -DIMWEBBROWSER_BACKEND_OPENGL_ES=ON
+    cmake --build build-stm32mp2 --parallel 1
+
+(St's own SDK uses the `aarch64-ostl-linux-gnu-` prefix; pass it via
+`-DSTM32MP2_CROSS_COMPILE=aarch64-ostl-linux-gnu-` if the plain
+`aarch64-linux-gnu-` toolchain is not installed.)
+
+### Deploying to the board
+
+Copy `build-stm32mp2/imwebbrowser` to the target and run it on the X11 or
+Wayland session (Weston) of the OpenSTLinux distribution. For a kiosk-style
+embedded display use `--fullscreen`. Example:
+
+    ./imwebbrowser --url https://example.com --fullscreen
+
+The GLES backend renders the web view through the WPE EGL-image path; on
+STM32MP2 the `SDL_HINT_VIDEO_FORCE_EGL` hint (set automatically) keeps the
+SDL context on the same EGL display as WPE.
 
 ## Run
 

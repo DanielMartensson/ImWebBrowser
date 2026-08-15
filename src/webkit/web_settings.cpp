@@ -30,28 +30,21 @@ WebKitSettings* web_settings_create(const Config& config)
     webkit_settings_set_enable_spatial_navigation(settings, config.spatial_navigation);
     webkit_settings_set_enable_caret_browsing(settings, config.caret_browsing);
     webkit_settings_set_enable_tabs_to_links(settings, config.tabs_to_links);
-    webkit_settings_set_enable_xss_auditor(settings, config.xss_auditor);
     webkit_settings_set_enable_site_specific_quirks(settings, config.site_specific_quirks);
     webkit_settings_set_enable_offline_web_application_cache(settings, config.offline_app_cache);
-    webkit_settings_set_enable_frame_flattening(settings, config.frame_flattening);
-    webkit_settings_set_enable_plugins(settings, config.plugins);
-    webkit_settings_set_enable_java(settings, config.java);
     webkit_settings_set_enable_html5_database(settings, config.html5_database);
     webkit_settings_set_enable_hyperlink_auditing(settings, config.hyperlink_auditing);
     webkit_settings_set_enable_resizable_text_areas(settings, config.resizable_text_areas);
     webkit_settings_set_enable_mock_capture_devices(settings, config.mock_capture_devices);
     webkit_settings_set_enable_write_console_messages_to_stdout(settings, config.console_to_stdout);
-    webkit_settings_set_enable_accelerated_2d_canvas(settings, config.accelerated_2d_canvas);
+#if WEBKIT_CHECK_VERSION(2, 45, 3)
+    webkit_settings_set_enable_2d_canvas_acceleration(settings, config.accelerated_2d_canvas);
+#endif
 
     if (!config.user_agent.empty())
         webkit_settings_set_user_agent(settings, config.user_agent.c_str());
 
     return settings;
-}
-
-void web_settings_apply_context(WebKitWebContext* context, const Config& config)
-{
-    webkit_web_context_set_sandbox_enabled(context, config.sandbox);
 }
 
 } /* namespace imwb */

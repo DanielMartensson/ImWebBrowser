@@ -38,7 +38,6 @@ void print_help()
         "      --no-web-audio       Disable Web Audio\n"
         "      --no-fullscreen-api  Disable the Fullscreen API\n"
         "      --developer-extras   Enable the Web Inspector\n"
-        "      --no-sandbox         Disable the WebKit sandbox\n"
         "      --no-smooth-scrolling  Use discrete (not smooth) wheel scrolling\n"
         "      --log-level=<lvl>    trace | debug | info | warn | error\n"
         "  -h, --help               Show this help\n",

@@ -249,7 +249,7 @@ void Application::update_window_title()
         return;
 
     static std::string last_title;
-    const std::string full = title + " - ImWebBrowser";
+    const std::string full = "ImWebBrowser - " + title;
     if (full != last_title) {
         last_title = full;
         SDL_SetWindowTitle(m_window.sdl_window(), full.c_str());

@@ -32,7 +32,6 @@ struct Config {
     bool web_audio;
     bool fullscreen_api;
     bool developer_extras;
-    bool sandbox;
     bool smooth_scrolling;
     bool encrypted_media;
     bool page_cache;
@@ -40,12 +39,8 @@ struct Config {
     bool spatial_navigation;
     bool caret_browsing;
     bool tabs_to_links;
-    bool xss_auditor;
     bool site_specific_quirks;
     bool offline_app_cache;
-    bool frame_flattening;
-    bool plugins;
-    bool java;
     bool html5_database;
     bool hyperlink_auditing;
     bool resizable_text_areas;

@@ -1,7 +1,14 @@
 # ImWebBrowser - a minimal, GPU-accelerated web browser powered by
 # WPE WebKit + Dear ImGui + SDL3, with Vulkan and OpenGL ES backends.
 #
-# NOTE: This machine is a Lenovo ThinkPad W540 (2013, 8 GB RAM).
+# Targets:
+#   - x86-64 Linux (development host) - native build.
+#   - STM32MP2 (Arm Cortex-A35, Mali-G57) - cross-compiled. Pass
+#     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/STM32MP2-armv8a.cmake.
+#     All dependencies are resolved through the target sysroot's pkg-config
+#     and CMake configs (see README "Cross-compiling for STM32MP2").
+#
+# NOTE: The development host is a Lenovo ThinkPad W540 (2013, 8 GB RAM).
 # Always build with a single job:
 #
 #     cmake --build build --parallel 1
@@ -40,7 +47,6 @@ option(IMWEBBROWSER_ENABLE_MEDIA_STREAM "Enable getUserMedia capture" ON)
 option(IMWEBBROWSER_ENABLE_WEB_AUDIO "Enable Web Audio" ON)
 option(IMWEBBROWSER_ENABLE_FULLSCREEN "Allow web pages to request fullscreen" ON)
 option(IMWEBBROWSER_ENABLE_DEVELOPER_EXTRAS "Enable the Web Inspector / developer extras" OFF)
-option(IMWEBBROWSER_ENABLE_SANDBOX "Enable the WebKit sandbox" ON)
 option(IMWEBBROWSER_ENABLE_SMOOTH_SCROLLING "Prefer smooth pixel axis scrolling" ON)
 option(IMWEBBROWSER_ENABLE_ENCRYPTED_MEDIA "Enable Encrypted Media Extensions (DRM)" ON)
 option(IMWEBBROWSER_ENABLE_PAGE_CACHE "Enable the back/forward page cache" ON)
@@ -48,12 +54,8 @@ option(IMWEBBROWSER_ENABLE_DNS_PREFETCHING "Enable DNS prefetching of links" ON)
 option(IMWEBBROWSER_ENABLE_SPATIAL_NAVIGATION "Enable arrow-key spatial navigation" OFF)
 option(IMWEBBROWSER_ENABLE_CARET_BROWSING "Enable caret browsing mode" OFF)
 option(IMWEBBROWSER_ENABLE_TABS_TO_LINKS "Allow Tab to focus page links" ON)
-option(IMWEBBROWSER_ENABLE_XSS_AUDITOR "Enable the XSS auditor" ON)
 option(IMWEBBROWSER_ENABLE_SITE_SPECIFIC_QUIRKS "Apply per-site compatibility quirks" ON)
 option(IMWEBBROWSER_ENABLE_OFFLINE_APP_CACHE "Enable the legacy offline app cache" OFF)
-option(IMWEBBROWSER_ENABLE_FRAME_FLATTENING "Flatten embedded frames to page width" OFF)
-option(IMWEBBROWSER_ENABLE_PLUGINS "Enable plugins (NPAPI)" OFF)
-option(IMWEBBROWSER_ENABLE_JAVA "Enable Java support" OFF)
 option(IMWEBBROWSER_ENABLE_HTML5_DATABASE "Enable HTML5 SQL databases" ON)
 option(IMWEBBROWSER_ENABLE_HYPERLINK_AUDITING "Enable hyperlink auditing (ping)" OFF)
 option(IMWEBBROWSER_ENABLE_RESIZABLE_TEXT_AREAS "Allow text areas to be resized" ON)
@@ -76,7 +78,6 @@ set(IMWEBBROWSER_DEFAULT_MEDIA_STREAM ${IMWEBBROWSER_ENABLE_MEDIA_STREAM})
 set(IMWEBBROWSER_DEFAULT_WEB_AUDIO ${IMWEBBROWSER_ENABLE_WEB_AUDIO})
 set(IMWEBBROWSER_DEFAULT_FULLSCREEN_API ${IMWEBBROWSER_ENABLE_FULLSCREEN})
 set(IMWEBBROWSER_DEFAULT_DEVELOPER_EXTRAS ${IMWEBBROWSER_ENABLE_DEVELOPER_EXTRAS})
-set(IMWEBBROWSER_DEFAULT_SANDBOX ${IMWEBBROWSER_ENABLE_SANDBOX})
 set(IMWEBBROWSER_DEFAULT_SMOOTH_SCROLLING ${IMWEBBROWSER_ENABLE_SMOOTH_SCROLLING})
 set(IMWEBBROWSER_DEFAULT_ENCRYPTED_MEDIA ${IMWEBBROWSER_ENABLE_ENCRYPTED_MEDIA})
 set(IMWEBBROWSER_DEFAULT_PAGE_CACHE ${IMWEBBROWSER_ENABLE_PAGE_CACHE})
@@ -84,12 +85,8 @@ set(IMWEBBROWSER_DEFAULT_DNS_PREFETCHING ${IMWEBBROWSER_ENABLE_DNS_PREFETCHING})
 set(IMWEBBROWSER_DEFAULT_SPATIAL_NAVIGATION ${IMWEBBROWSER_ENABLE_SPATIAL_NAVIGATION})
 set(IMWEBBROWSER_DEFAULT_CARET_BROWSING ${IMWEBBROWSER_ENABLE_CARET_BROWSING})
 set(IMWEBBROWSER_DEFAULT_TABS_TO_LINKS ${IMWEBBROWSER_ENABLE_TABS_TO_LINKS})
-set(IMWEBBROWSER_DEFAULT_XSS_AUDITOR ${IMWEBBROWSER_ENABLE_XSS_AUDITOR})
 set(IMWEBBROWSER_DEFAULT_SITE_SPECIFIC_QUIRKS ${IMWEBBROWSER_ENABLE_SITE_SPECIFIC_QUIRKS})
 set(IMWEBBROWSER_DEFAULT_OFFLINE_APP_CACHE ${IMWEBBROWSER_ENABLE_OFFLINE_APP_CACHE})
-set(IMWEBBROWSER_DEFAULT_FRAME_FLATTENING ${IMWEBBROWSER_ENABLE_FRAME_FLATTENING})
-set(IMWEBBROWSER_DEFAULT_PLUGINS ${IMWEBBROWSER_ENABLE_PLUGINS})
-set(IMWEBBROWSER_DEFAULT_JAVA ${IMWEBBROWSER_ENABLE_JAVA})
 set(IMWEBBROWSER_DEFAULT_HTML5_DATABASE ${IMWEBBROWSER_ENABLE_HTML5_DATABASE})
 set(IMWEBBROWSER_DEFAULT_HYPERLINK_AUDITING ${IMWEBBROWSER_ENABLE_HYPERLINK_AUDITING})
 set(IMWEBBROWSER_DEFAULT_RESIZABLE_TEXT_AREAS ${IMWEBBROWSER_ENABLE_RESIZABLE_TEXT_AREAS})
@@ -155,6 +152,23 @@ endif()
 
 if(IMWEBBROWSER_ACTIVE_BACKEND STREQUAL "vulkan")
     find_package(Vulkan REQUIRED)
+endif()
+
+# ---------------------------------------------------------------------------
+# Cross-compilation (STM32MP2 and other aarch64 targets)
+# ---------------------------------------------------------------------------
+if(CMAKE_CROSSCOMPILING)
+    if(NOT PKG_CONFIG_EXECUTABLE)
+        message(FATAL_ERROR
+            "ImWebBrowser: cross-compiling without a target pkg-config.\n"
+            "Provide a toolchain file that points PKG_CONFIG_EXECUTABLE at the\n"
+            "target's pkg-config (see cmake/toolchains/STM32MP2-armv8a.cmake).")
+    endif()
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+        message(STATUS "ImWebBrowser: cross-compiling for aarch64 (STM32MP2 class target)")
+        message(STATUS "  Sysroot            : ${CMAKE_SYSROOT}")
+        message(STATUS "  pkg-config         : ${PKG_CONFIG_EXECUTABLE}")
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------

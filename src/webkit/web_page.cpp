@@ -72,15 +72,16 @@ bool WebPage::create(FrameSink& sink, uint32_t width_px, uint32_t height_px,
 
     WebKitWebViewBackend* wb = webkit_web_view_backend_new(m_view_backend, nullptr, nullptr);
     WebKitSettings* settings = web_settings_create(config);
-    m_web_view = webkit_web_view_new_with_settings(wb, settings);
+    m_web_view = webkit_web_view_new(wb);
+    if (!m_web_view) {
+        LOG_ERROR("WPE: failed to create WebKitWebView");
+        g_object_unref(settings);
+        return false;
+    }
+    webkit_web_view_set_settings(m_web_view, settings);
     g_object_unref(settings);
     /* Note: WebKitWebViewBackend is a boxed type, not a GObject; the web
      * view takes its own reference, so `wb` must not be unreffed here. */
-
-    if (!m_web_view) {
-        LOG_ERROR("WPE: failed to create WebKitWebView");
-        return false;
-    }
 
     g_signal_connect(m_web_view, "load-changed", G_CALLBACK(on_load_changed), this);
     g_signal_connect(m_web_view, "notify::estimated-load-progress",

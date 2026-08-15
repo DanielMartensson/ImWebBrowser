@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Aquarium GL2</title>
+<style>
+  html,body{margin:0;padding:0;overflow:hidden;background:#000;width:100%;height:100%;}
+  canvas{width:100%;height:100%;display:block;}
+  #status{position:fixed;left:10px;top:10px;color:#fff;font:14px monospace;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:4px;z-index:9;pointer-events:none;}
+  #hud{position:fixed;right:10px;top:10px;color:#7fdcff;font:16px monospace;background:rgba(0,0,0,.55);padding:8px 12px;border-radius:4px;z-index:9;pointer-events:none;text-align:right;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="status">loading...</div>
+<div id="hud"></div>
+<script>
+'use strict';
+
+window.onerror = function (msg, src, line, col, err) {
+  try { document.title = 'AQGL2|ERR: ' + msg + ' @' + line + ':' + col; } catch (e) {}
+};
+function setStatus(t) { statusEl.textContent = t; }
+
+const params = new URLSearchParams(location.search);
+const TOTAL_FISH = parseInt(params.get('fish') || params.get('numFish') || '5000', 10);
+const SPEED = parseFloat(params.get('speed') || '1');
+const INST_SCALE = parseFloat(params.get('instscale') || '1');
+const TRI_SCALE = parseFloat(params.get('tris') || '1');
+const FRAG_PLAIN = params.get('frag') === 'plain';
+const VS_PLAIN = params.get('vs') === 'plain';
+const RES_SCALE = parseFloat(params.get('res') || '1');
+const PART = params.get('part') || 'all';
+const FSCALE = parseFloat(params.get('fscale') || '1');
+
+const canvas = document.getElementById('c');
+const statusEl = document.getElementById('status');
+const hudEl = document.getElementById('hud');
+const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: true });
+if (!gl) { statusEl.textContent = 'WebGL2 NOT available'; throw new Error('no webgl2'); }
+
+// ---------------------------------------------------------------- helpers
+function compile(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, '#version 300 es\nprecision highp float;\n' + src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    throw new Error('shader err: ' + gl.getShaderInfoLog(sh));
+  }
+  return sh;
+}
+function program(vsSrc, fsSrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('link err: ' + gl.getProgramInfoLog(p));
+  return p;
+}
+
+const MAT4 = {
+  identity(out) {
+    out[0]=out[5]=out[10]=out[15]=1; out[1]=out[2]=out[3]=out[4]=out[6]=out[7]=out[8]=out[9]=out[11]=out[12]=out[13]=out[14]=0;
+    return out;
+  },
+  mul(out, a, b) {
+    for (let c = 0; c < 4; c++) {
+      const bc0 = b[c*4], bc1 = b[c*4+1], bc2 = b[c*4+2], bc3 = b[c*4+3];
+      const a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3];
+      const a4 = a[4], a5 = a[5], a6 = a[6], a7 = a[7];
+      const a8 = a[8], a9 = a[9], a10 = a[10], a11 = a[11];
+      const a12 = a[12], a13 = a[13], a14 = a[14], a15 = a[15];
+      out[c*4]   = a0*bc0 + a4*bc1 + a8*bc2 + a12*bc3;
+      out[c*4+1] = a1*bc0 + a5*bc1 + a9*bc2 + a13*bc3;
+      out[c*4+2] = a2*bc0 + a6*bc1 + a10*bc2 + a14*bc3;
+      out[c*4+3] = a3*bc0 + a7*bc1 + a11*bc2 + a15*bc3;
+    }
+    return out;
+  },
+  perspective(out, fovDeg, aspect, near, far) {
+    const f = 1.0 / Math.tan(fovDeg * Math.PI / 360.0);
+    out[0] = f; out[1] = 0; out[2] = 0; out[3] = 0;
+    out[4] = 0; out[5] = f * aspect; out[6] = 0; out[7] = 0;
+    out[8] = 0; out[9] = 0; out[10] = (far + near) / (near - far); out[11] = -1;
+    out[12] = 0; out[13] = 0; out[14] = (2 * far * near) / (near - far); out[15] = 0;
+    return out;
+  },
+  lookAt(out, eye, target, up) {
+    let zx = eye[0]-target[0], zy = eye[1]-target[1], zz = eye[2]-target[2];
+    let len = Math.hypot(zx,zy,zz); zx/=len; zy/=len; zz/=len;
+    let xx = up[1]*zz - up[2]*zy, xy = up[2]*zx - up[0]*zz, xz = up[0]*zy - up[1]*zx;
+    len = Math.hypot(xx,xy,xz); xx/=len; xy/=len; xz/=len;
+    const yx = zy*xz - zz*xy, yy = zz*xx - zx*xz, yz = zx*xy - zy*xx;
+    out[0]=xx; out[1]=yx; out[2]=zx; out[3]=0;
+    out[4]=xy; out[5]=yy; out[6]=zy; out[7]=0;
+    out[8]=xz; out[9]=yz; out[10]=zz; out[11]=0;
+    out[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]);
+    out[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]);
+    out[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]);
+    out[15]=1;
+    return out;
+  },
+};
+
+function rand() { return Math.random(); }
+
+const S = {
+  proj: new Float32Array(16),
+  view: new Float32Array(16),
+  vp: new Float32Array(16),
+  mvp: new Float32Array(16),
+};
+
+const TWO_PI = Math.PI * 2;
+
+const FISH_ANGLE = (() => {
+  return {
+    c04: Math.cos(0.04), s04: Math.sin(0.04),
+    c01: Math.cos(0.01), s01: Math.sin(0.01),
+  };
+})();
+
+function updateFish(fs, clock) {
+  const n = fs.n, d = fs.instArr, xr = fs.xr, yr = fs.yr, zr = fs.zr, spd = fs.spd;
+  const h = FISH_CONST.fishHeight + fs.sp.heightOffset;
+  const ts = fs.sp.tailSpeed * FISH_CONST.tailSpeed;
+  const cy = FISH_CONST.yClock;
+  const c04 = FISH_ANGLE.c04, s04 = FISH_ANGLE.s04, c01 = FISH_ANGLE.c01, s01 = FISH_ANGLE.s01;
+  for (let i = 0; i < n; i++) {
+    const speed = spd[i];
+    const fsc = (clock * FISH_CONST.fishSpeed + i * FISH_CONST.fishOffset) * speed;
+    const sx = Math.sin(fsc), cx = Math.cos(fsc);
+    const fscY = fsc * cy;
+    const sy = Math.sin(fscY), cyc = Math.cos(fscY);
+    const px = sx * xr[i];
+    const py = sy * yr[i] + h;
+    const pz = cx * zr[i];
+    const nxp = sx * c04 - cx * s04;
+    const nyp = sy * c01 - cyc * s01;
+    const nzp = cx * c04 + sx * s04;
+    let vzx = px - nxp * xr[i], vzy = py - nyp * yr[i], vzz = pz - nzp * zr[i];
+    let vl = Math.sqrt(vzx*vzx + vzy*vzy + vzz*vzz);
+    vzx /= vl; vzy /= vl; vzz /= vl;
+    let vxx = vzz, vxz = -vzx;
+    vl = Math.sqrt(vxx*vxx + vxz*vxz);
+    vxx /= vl; vxz /= vl;
+    const o = i * 11;
+    d[o] = px; d[o+1] = py; d[o+2] = pz;
+    d[o+3] = vxx; d[o+4] = 0; d[o+5] = vxz;
+    d[o+6] = vzx; d[o+7] = vzy; d[o+8] = vzz;
+    d[o+9] = fs.sc[i];
+    d[o+10] = ((clock + i) * ts * speed) % TWO_PI;
+  }
+}
+
+// ---------------------------------------------------------------- shaders
+// ---- FISH (instanced, transforms computed per-instance in JS) ----
+const FISH_VS = `
+uniform mat4 uViewProj;
+uniform vec3 uCamPos;
+uniform float uFishLength;
+uniform float uFishWaveLength;
+uniform float uFishBendAmount;
+uniform vec3 uLightDir;
+uniform vec3 uAmbient;
+uniform vec3 uFogColor;
+uniform float uFogPower;
+uniform float uFogMult;
+uniform float uFogOffset;
+in vec3 aPos;
+in vec3 aNormal;
+in vec2 aUV;
+in vec3 iPos;
+in vec3 iVx;
+in vec3 iVz;
+in float iScale;
+in float iTailTime;
+out vec2 vUV;
+out vec3 vN;
+out vec3 vPos;
+out float vFogK;
+void main() {
+${VS_PLAIN ? `  vec3 w = iPos + aPos * iScale;
+  gl_Position = uViewProj * vec4(w, 1.0);
+  vUV = aUV;
+  vN = aNormal;
+  vPos = w;
+  vFogK = 0.0;` : `
+  float mult = aPos.z > 0.0 ? (aPos.z / uFishLength) : (-aPos.z / uFishLength * 2.0);
+  float offset = pow(mult, 2.0) * sin(iTailTime + mult * uFishWaveLength) * uFishBendAmount;
+  vec3 local = vec3(aPos.x + offset, aPos.y, aPos.z) * iScale;
+  vec3 vy = cross(iVz, iVx);
+  vec3 w = iPos + iVx * local.x + vy * local.y + iVz * local.z;
+  gl_Position = uViewProj * vec4(w, 1.0);
+  vUV = aUV;
+  vN = iVx * aNormal.x + vy * aNormal.y + iVz * aNormal.z;
+  vPos = w;
+  vFogK = pow(length(w - uCamPos), uFogPower) * uFogMult - uFogOffset;
+`}
+}
+`;
+
+const FISH_FS = `
+uniform sampler2D uDiffuse;
+uniform vec3 uLightDir;
+uniform vec3 uAmbient;
+uniform vec3 uFogColor;
+uniform vec3 uCamPos;
+in vec2 vUV;
+in vec3 vN;
+in vec3 vPos;
+in float vFogK;
+out vec4 fragColor;
+void main() {
+${FRAG_PLAIN ? `  fragColor = vec4(0.7, 0.3, 0.2, 1.0);` : `
+  vec3 N = normalize(vN);
+  vec3 L = normalize(uLightDir);
+  float d = max(dot(N, L), 0.0);
+  vec3 c = texture(uDiffuse, vUV).rgb * (uAmbient + d * 0.85);
+  float fog = clamp(vFogK, 0.0, 1.0);
+  c = mix(c, uFogColor, fog);
+  fragColor = vec4(c, 1.0);
+`}
+}
+`;
+
+// ---- PROPS (normal-mapped lambert + fog) ----
+const PROP_VS = `
+uniform mat4 uModel;
+uniform mat4 uModelVP;
+uniform float uTime;
+uniform float uSway;
+uniform vec3 uCamPos;
+uniform float uFogPower;
+uniform float uFogMult;
+uniform float uFogOffset;
+in vec3 aPos;
+in vec3 aNormal;
+in vec2 aUV;
+in vec3 aTangent;
+in vec3 aBinormal;
+out vec2 vUV;
+out vec3 vT;
+out vec3 vB;
+out vec3 vN;
+out vec3 vPos;
+out float vFogK;
+void main() {
+  vec3 p = aPos;
+  if (uSway > 0.0) {
+    p.x += sin(uTime * 1.7 + p.y * 0.19) * uSway * pow(p.y / 22.0, 1.4);
+  }
+  vec4 wp = uModel * vec4(p, 1.0);
+  gl_Position = uModelVP * vec4(p, 1.0);
+  vUV = aUV;
+  vT = (uModel * vec4(aTangent, 0.0)).xyz;
+  vB = (uModel * vec4(aBinormal, 0.0)).xyz;
+  vN = (uModel * vec4(aNormal, 0.0)).xyz;
+  vPos = wp.xyz;
+  vFogK = pow(length(wp.xyz - uCamPos), uFogPower) * uFogMult - uFogOffset;
+}
+`;
+
+const PROP_FS = `
+uniform sampler2D uDiffuse;
+uniform sampler2D uNormalMap;
+uniform vec3 uLightDir;
+uniform vec3 uAmbient;
+uniform vec3 uFogColor;
+uniform vec3 uCamPos;
+in vec2 vUV;
+in vec3 vT;
+in vec3 vB;
+in vec3 vN;
+in vec3 vPos;
+in float vFogK;
+out vec4 fragColor;
+void main() {
+  vec3 nm = texture(uNormalMap, vUV).xyz * 2.0 - 1.0;
+  vec3 N = normalize(mat3(normalize(vT), normalize(vB), normalize(vN)) * nm);
+  vec3 L = normalize(uLightDir);
+  float d = max(dot(N, L), 0.0);
+  vec3 albedo = texture(uDiffuse, vUV).rgb;
+  vec3 c = albedo * (uAmbient + d * 0.85);
+  float fog = clamp(vFogK, 0.0, 1.0);
+  c = mix(c, uFogColor, fog);
+  fragColor = vec4(c, 1.0);
+}
+`;
+
+// ---- PROPS diffuse-only (SupportBeams) ----
+const PROPD_VS = PROP_VS;
+const PROPD_FS = `
+uniform sampler2D uDiffuse;
+uniform vec3 uLightDir;
+uniform vec3 uAmbient;
+uniform vec3 uFogColor;
+uniform vec3 uCamPos;
+in vec2 vUV;
+in vec3 vT;
+in vec3 vB;
+in vec3 vN;
+in vec3 vPos;
+in float vFogK;
+out vec4 fragColor;
+void main() {
+  vec3 N = normalize(vN);
+  vec3 L = normalize(uLightDir);
+  float d = max(dot(N, L), 0.0);
+  vec3 c = texture(uDiffuse, vUV).rgb * (uAmbient + d * 0.85);
+  float fog = clamp(vFogK, 0.0, 1.0);
+  c = mix(c, uFogColor, fog);
+  fragColor = vec4(c, 1.0);
+}
+`;
+
+// ---- SKY (cubemap) ----
+const SKY_VS = `
+uniform mat4 uViewProj;
+in vec3 aDir;
+out vec3 vDir;
+void main() {
+  gl_Position = uViewProj * vec4(aDir, 0.0);
+  gl_Position = gl_Position.xyww;
+  vDir = aDir;
+}
+`;
+const SKY_FS = `
+uniform samplerCube uSky;
+in vec3 vDir;
+out vec4 fragColor;
+void main() {
+  fragColor = vec4(texture(uSky, vDir).rgb, 1.0);
+}
+`;
+
+// ---- GLASS (GlobeInner / GlobeOuter) ----
+const GLASS_VS = `
+uniform mat4 uModel;
+uniform mat4 uViewProj;
+in vec3 aPos;
+in vec3 aNormal;
+out vec3 vN;
+out vec3 vPos;
+void main() {
+  vec4 wp = uModel * vec4(aPos, 1.0);
+  gl_Position = uViewProj * wp;
+  vN = (uModel * vec4(aNormal, 0.0)).xyz;
+  vPos = wp.xyz;
+}
+`;
+const GLASS_FS = `
+uniform samplerCube uSky;
+uniform vec3 uCamPos;
+uniform float uTankColor;
+in vec3 vN;
+in vec3 vPos;
+out vec4 fragColor;
+void main() {
+  vec3 N = normalize(vN);
+  vec3 V = normalize(uCamPos - vPos);
+  vec3 R = reflect(-V, N);
+  vec3 env = texture(uSky, R).rgb;
+  float fres = pow(1.0 - abs(dot(N, V)), 2.0);
+  vec3 c = env * vec3(0.55, 0.78, 0.95) * uTankColor;
+  float alpha = 0.18 + fres * 0.22;
+  fragColor = vec4(c, alpha);
+}
+`;
+
+// ---- BUBBLES (instanced billboards) ----
+const BUBBLE_VS = `
+uniform mat4 uViewProj;
+uniform vec2 uPixScale;
+uniform float uTime;
+in vec3 aBase;
+in vec3 aSpeedSize;
+in vec4 aQuad;
+out float vQ;
+void main() {
+  float y = aBase.y + mod(uTime * aSpeedSize.x, 62.0);
+  vec4 clip = uViewProj * vec4(aBase.x, y, aBase.z, 1.0);
+  gl_Position = clip;
+  gl_Position.xy += aQuad.xy * clip.w * uPixScale * aSpeedSize.y;
+  vQ = length(aQuad.xy);
+}
+`;
+const BUBBLE_FS = `
+out vec4 fragColor;
+in float vQ;
+void main() {
+  float a = pow(1.0 - vQ, 2.0) * 0.5;
+  fragColor = vec4(0.8, 0.92, 1.0, a);
+}
+`;
+
+const fishProg = program(FISH_VS, FISH_FS);
+const propProg = program(PROP_VS, PROP_FS);
+const propdProg = program(PROPD_VS, PROPD_FS);
+const skyProg = program(SKY_VS, SKY_FS);
+const glassProg = program(GLASS_VS, GLASS_FS);
+const bubbleProg = program(BUBBLE_VS, BUBBLE_FS);
+
+const U = (p) => { const u = {}; for (let i = 0; i < gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i++) { const info = gl.getActiveUniform(p, i); u[info.name] = gl.getUniformLocation(p, info.name); } return u; };
+const uFish = U(fishProg), uProp = U(propProg), uPropd = U(propdProg), uSky = U(skyProg), uGlass = U(glassProg), uBubble = U(bubbleProg);
+
+// ---------------------------------------------------------------- assets
+function dedupeMesh(mesh) {
+  const pos = mesh.pos, nrm = mesh.nrm, uv = mesh.uv, tan = mesh.tan, bin = mesh.bin;
+  const n = pos.length / 3;
+  const seen = new Map();
+  const npos = [], nnrm = nrm ? [] : null, nuv = uv ? [] : null, ntan = tan ? [] : null, nbin = bin ? [] : null;
+  const idx = new Uint16Array(n);
+  let u = 0;
+  for (let i = 0; i < n; i++) {
+    const key = Math.fround(pos[i*3]) + ',' + Math.fround(pos[i*3+1]) + ',' + Math.fround(pos[i*3+2]);
+    let ui = seen.get(key);
+    if (ui === undefined) {
+      ui = u++; seen.set(key, ui);
+      npos.push(pos[i*3], pos[i*3+1], pos[i*3+2]);
+      if (nnrm) nnrm.push(nrm[i*3], nrm[i*3+1], nrm[i*3+2]);
+      if (nuv) nuv.push(uv[i*2], uv[i*2+1]);
+      if (ntan) ntan.push(tan[i*3], tan[i*3+1], tan[i*3+2]);
+      if (nbin) nbin.push(bin[i*3], bin[i*3+1], bin[i*3+2]);
+    }
+    idx[i] = ui;
+  }
+  return {
+    pos: new Float32Array(npos),
+    nrm: nnrm ? new Float32Array(nnrm) : null,
+    uv: nuv ? new Float32Array(nuv) : null,
+    tan: ntan ? new Float32Array(ntan) : null,
+    bin: nbin ? new Float32Array(nbin) : null,
+    idx,
+    numVerts: u,
+    numIdx: n,
+    textures: mesh.textures,
+  };
+}
+
+function makeDefaultTex() {  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([128,128,255,255]));
+  return t;
+}
+
+function loadImg(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('img fail ' + url));
+    img.src = url;
+  });
+}
+
+function makeTex2d(url) {
+  return loadImg(url).then((img) => {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    return t;
+  });
+}
+
+let skyTex = null;
+function makeSky() {
+  const faces = [
+    'assets/GlobeOuter_EM_positive_x.jpg',
+    'assets/GlobeOuter_EM_negative_x.jpg',
+    'assets/GlobeOuter_EM_positive_y.jpg',
+    'assets/GlobeOuter_EM_negative_y.jpg',
+    'assets/GlobeOuter_EM_positive_z.jpg',
+    'assets/GlobeOuter_EM_negative_z.jpg',
+  ];
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_CUBE_MAP, t);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  return Promise.all(faces.map((f) => loadImg(f))).then((imgs) => {
+    for (let i = 0; i < 6; i++) {
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, t);
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imgs[i]);
+    }
+    skyTex = t;
+  });
+}
+
+function loadModel(name) {
+  return fetch('assets/' + name + '.js').then((r) => r.json()).then((d) => {
+    return d.models.map((m) => {
+      const f = m.fields;
+      const toF32 = (k, n) => f[k] ? new Float32Array(f[k].data) : null;
+      const mesh = {
+        pos: toF32('position'),
+        nrm: toF32('normal'),
+        uv: toF32('texCoord'),
+        tan: toF32('tangent'),
+        bin: toF32('binormal'),
+        idx: f.indices ? new Uint16Array(f.indices.data) : null,
+        numVerts: f.position.data.length / 3,
+        textures: m.textures || {},
+      };
+      mesh.numIdx = mesh.idx ? mesh.idx.length : mesh.numVerts;
+      return mesh;
+    });
+  });
+}
+
+function makeVAO(program, mesh, extraAttribs) {
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const buf = (data, loc, size, divisor) => {
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    if (divisor) gl.vertexAttribDivisor(loc, divisor);
+  };
+  if (mesh.pos) buf(mesh.pos, 0, 3, 0);
+  if (mesh.nrm) buf(mesh.nrm, 1, 3, 0);
+  if (mesh.uv) buf(mesh.uv, 2, 2, 0);
+  if (mesh.tan) buf(mesh.tan, 3, 3, 0);
+  if (mesh.bin) buf(mesh.bin, 4, 3, 0);
+  if (mesh.idx) {
+    const ib = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.idx, gl.STATIC_DRAW);
+  }
+  if (extraAttribs) {
+    for (const ea of extraAttribs) buf(ea.data, ea.loc, ea.size, 1);
+  }
+  gl.bindVertexArray(null);
+  return vao;
+}
+
+// ---------------------------------------------------------------- scene data
+const fishTable = [
+  { name: 'SmallFishA',  speed: 1,     speedRange: 1.5, radius: 30, radiusRange: 25, tailSpeed: 10,  heightOffset: 0,  heightRange: 16, fishLength: 10, waveLength: 1,    bend: 2 },
+  { name: 'MediumFishA', speed: 1,     speedRange: 2,   radius: 10, radiusRange: 20, tailSpeed: 1,   heightOffset: 0,  heightRange: 16, fishLength: 10, waveLength: -2,   bend: 2 },
+  { name: 'MediumFishB', speed: 0.5,   speedRange: 4,   radius: 10, radiusRange: 20, tailSpeed: 3,   heightOffset: -8, heightRange: 5,  fishLength: 10, waveLength: -2,   bend: 2 },
+  { name: 'BigFishA',    speed: 0.5,   speedRange: 0.5, radius: 50, radiusRange: 3,  tailSpeed: 1.5, heightOffset: 0,  heightRange: 16, fishLength: 10, waveLength: -1,   bend: 0.5 },
+  { name: 'BigFishB',    speed: 0.5,   speedRange: 0.5, radius: 45, radiusRange: 3,  tailSpeed: 1,   heightOffset: 0,  heightRange: 16, fishLength: 10, waveLength: -0.7, bend: 0.3 },
+];
+
+function fishCounts(total) {
+  const res = {};
+  let numLeft = total;
+  for (const type of ['Big', 'Medium', 'Small']) {
+    for (const sp of fishTable) {
+      if (!sp.name.startsWith(type)) continue;
+      let numType = numLeft;
+      if (type === 'Big') numType = Math.min(numLeft, total < 100 ? 1 : 2);
+      else if (type === 'Medium') {
+        if (total < 1000) numType = Math.min(numLeft, (total / 10) | 0);
+        else if (total < 10000) numType = Math.min(numLeft, 80);
+        else numType = Math.min(numLeft, 160);
+      }
+      numLeft -= numType;
+      res[sp.name] = numType;
+    }
+  }
+  return res;
+}
+
+const FISH_CONST = { fishSpeed: 0.124, fishOffset: 0.52, xClock: 1, yClock: 0.556, zClock: 1, fishHeight: 25, tailSpeed: 1 };
+
+let models = {};
+let propDraws = [];
+let fishSpecies = [];
+let skyVAO = null, quadVAO = null;
+
+function buildSky() {
+  const positions = new Float32Array([
+    -1,-1,-1,  1,-1,-1,  1, 1,-1,  -1,-1,-1,  1, 1,-1,  -1, 1,-1,
+    -1,-1, 1, -1, 1, 1,  1, 1, 1,  -1,-1, 1,  1, 1, 1,   1,-1, 1,
+    -1, 1,-1,  1, 1,-1,  1, 1, 1,  -1, 1,-1,  1, 1, 1,  -1, 1, 1,
+    -1,-1,-1, -1,-1, 1,  1,-1, 1,  -1,-1,-1,  1,-1, 1,   1,-1,-1,
+    -1, 1, 1, -1, 1,-1, -1,-1,-1,  -1, 1, 1, -1,-1,-1,  -1,-1, 1,
+     1, 1,-1,  1, 1, 1,  1,-1, 1,   1, 1,-1,  1,-1, 1,   1,-1,-1,
+  ]);
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const b = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+  skyVAO = vao;
+
+  const q = new Float32Array([-1,-1, 1,-1, 1,1, -1,-1, 1,1, -1,1]);
+  const qv = gl.createVertexArray();
+  gl.bindVertexArray(qv);
+  const qb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, qb);
+  gl.bufferData(gl.ARRAY_BUFFER, q, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+  quadVAO = qv;
+}
+
+function buildBubbles() {
+  const N = 240;
+  const base = new Float32Array(N * 3), ss = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    base[i*3]   = (rand() * 2 - 1) * 62;
+    base[i*3+1] = rand() * 62;
+    base[i*3+2] = (rand() * 2 - 1) * 62;
+    ss[i*3]     = 2 + rand() * 8;
+    ss[i*3+1]   = 0.25 + rand() * 0.55;
+    ss[i*3+2]   = 0;
+  }
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const b = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, base, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  const s = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, s);
+  gl.bufferData(gl.ARRAY_BUFFER, ss, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0); gl.vertexAttribDivisor(1, 1);
+  gl.bindVertexArray(null);
+  return { vao, count: N };
+}
+
+async function init() {
+  setStatus('loading...');
+  const MODEL_NAMES = ['Arch','Coral','CoralStoneA','CoralStoneB','FloorBase_Baked','GlobeBase','GlobeInner','GlobeOuter','RockA','RockB','RockC','RuinColumn','Stone','Stones','SunknShip','SunknSub','TreasureChest','SupportBeams','SeaweedA','SeaweedB','SmallFishA','MediumFishA','MediumFishB','BigFishA','BigFishB'];
+
+  const loading = [];
+  let done = 0;
+  const progress = (n) => { done++; setStatus('loading ' + done + '/' + n); };
+  for (const name of MODEL_NAMES) {
+    const p = loadModel(name).then((meshes) => { models[name] = meshes; progress(MODEL_NAMES.length); });
+    loading.push(p);
+  }
+  loading.push(makeSky().then(() => progress(MODEL_NAMES.length + 1)));
+  await Promise.all(loading);
+  setStatus('textures...');
+
+  // textures
+  const texCache = {};
+  const getTex = (url) => texCache[url] || (texCache[url] = makeTex2d('assets/' + url));
+  const defaultTex = makeDefaultTex();
+
+  // props from placement
+  const placement = await (await fetch('assets/PropPlacement.js')).json();
+  const SKIP = { Skybox: 1, EnvironmentBox: 1 };
+  for (const obj of placement.objects) {
+    if (SKIP[obj.name]) continue;
+    const meshes = models[obj.name];
+    if (!meshes) continue;
+    const wm = new Float32Array(obj.worldMatrix);
+    for (const mesh of meshes) {
+      const hasNM = !!mesh.textures.normalMap;
+      const prog = hasNM ? propProg : propdProg;
+      const vao = makeVAO(prog, mesh);
+      propDraws.push({
+        prog, vao,
+        mesh,
+        wm,
+        diffuse: await getTex(mesh.textures.diffuse),
+        normalMap: mesh.textures.normalMap ? await getTex(mesh.textures.normalMap) : defaultTex,
+        sway: obj.name.startsWith('Seaweed') ? 2.6 : 0,
+      });
+    }
+  }
+
+  // fish species (instanced, JS-computed transforms)
+  const counts = fishCounts(TOTAL_FISH);
+  for (const sp of fishTable) {
+    const n = counts[sp.name] || 0;
+    if (!n) continue;
+    const meshes = models[sp.name];
+    const mesh = dedupeMesh(meshes[0]);
+    const xr = new Float32Array(n), yr = new Float32Array(n), zr = new Float32Array(n), spd = new Float32Array(n), sc = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      xr[i] = sp.radius + rand() * sp.radiusRange;
+      yr[i] = 2.0 + rand() * (1 * sp.heightRange);
+      zr[i] = sp.radius + rand() * sp.radiusRange;
+      spd[i] = sp.speed + rand() * sp.speedRange;
+      sc[i] = (1.0 + rand() * 1.0) * FSCALE;
+    }
+    const instArr = new Float32Array(n * 11);
+    const instBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, instBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, instArr, gl.DYNAMIC_DRAW);
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    const b = (data, loc, size, divisor) => {
+      const bb = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, bb);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+      if (divisor) gl.vertexAttribDivisor(loc, divisor);
+    };
+    b(mesh.pos, 0, 3, 0);
+    b(mesh.nrm, 1, 3, 0);
+    b(mesh.uv, 2, 2, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, instBuf);
+    gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 44, 0);   gl.vertexAttribDivisor(3, 1);
+    gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 3, gl.FLOAT, false, 44, 12);  gl.vertexAttribDivisor(4, 1);
+    gl.enableVertexAttribArray(5); gl.vertexAttribPointer(5, 3, gl.FLOAT, false, 44, 24);  gl.vertexAttribDivisor(5, 1);
+    gl.enableVertexAttribArray(6); gl.vertexAttribPointer(6, 1, gl.FLOAT, false, 44, 36);  gl.vertexAttribDivisor(6, 1);
+    gl.enableVertexAttribArray(7); gl.vertexAttribPointer(7, 1, gl.FLOAT, false, 44, 40);  gl.vertexAttribDivisor(7, 1);
+    if (mesh.idx) {
+      const ib = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.idx, gl.STATIC_DRAW);
+    }
+    gl.bindVertexArray(null);
+    fishSpecies.push({
+      sp,
+      vao, n,
+      mesh,
+      xr, yr, zr, spd, sc,
+      instArr, instBuf,
+      diffuse: await getTex(mesh.textures.diffuse),
+    });
+  }
+
+  buildSky();
+  const bubbles = buildBubbles();
+
+  // ---------------------------------------------------------------- render state
+  const eye = new Float32Array(3), target = new Float32Array(3), up = new Float32Array([0,1,0]);
+  const VIEW = { targetHeight: 63.3, targetRadius: 91.6, eyeHeight: 7.5, eyeRadius: 13.2, eyeSpeed: 0.0258, fov: 82.699 };
+  const lightDir = new Float32Array([0.35, 0.85, 0.4]);
+  let lz = Math.hypot(lightDir[0], lightDir[1], lightDir[2]);
+  lightDir[0]/=lz; lightDir[1]/=lz; lightDir[2]/=lz;
+  const ambient = new Float32Array([0.218, 0.502, 0.706]);
+  const fogCol = new Float32Array([0.338, 0.81, 1]);
+  const fogPower = 16.5, fogMult = 1.5, fogOffset = 0.738;
+
+  function resize() {
+    canvas.width = Math.max(2, Math.round(window.innerWidth * RES_SCALE));
+    canvas.height = Math.max(2, Math.round(window.innerHeight * RES_SCALE));
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.clearColor(0.08, 0.2, 0.32, 1);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+
+  // GPU timers
+  const timerExt = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+  const gpuFish = { q: timerExt ? gl.createQuery() : null, busy: false, ms: 0 };
+  const gpuTotal = { q: timerExt ? gl.createQuery() : null, busy: false, ms: 0 };
+
+  let clock = 0, eyeClock = 0;
+  let lastT = performance.now();
+  let frames = 0, fpsAccum = 0, fps = 0, jsMs = 0;
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min((now - lastT) / 1000, 0.05);
+    lastT = now;
+    if (dt <= 0) return;
+    clock += dt;
+    eyeClock += dt * VIEW.eyeSpeed * SPEED;
+    const tStart = performance.now();
+    jsMs = 0;
+
+    if (timerExt && gpuTotal.q && !gpuTotal.busy) {
+      gl.beginQuery(timerExt.TIME_ELAPSED_EXT, gpuTotal.q);
+      gpuTotal.busy = true;
+    }
+    if (timerExt && gpuFish.q && !gpuFish.busy) {
+      gl.beginQuery(timerExt.TIME_ELAPSED_EXT, gpuFish.q);
+      gpuFish.busy = true;
+    }
+
+    eye[0] = Math.sin(eyeClock) * VIEW.eyeRadius; eye[1] = VIEW.eyeHeight; eye[2] = Math.cos(eyeClock) * VIEW.eyeRadius;
+    target[0] = Math.sin(eyeClock + Math.PI) * VIEW.targetRadius; target[1] = VIEW.targetHeight; target[2] = Math.cos(eyeClock + Math.PI) * VIEW.targetRadius;
+
+    MAT4.lookAt(S.view, eye, target, up);
+    MAT4.perspective(S.proj, VIEW.fov, canvas.width / canvas.height, 1, 20000);
+    MAT4.mul(S.vp, S.proj, S.view);
+
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // sky
+    if (PART === 'all' || PART === 'scene') {
+      gl.depthMask(false);
+      gl.useProgram(skyProg);
+      gl.uniformMatrix4fv(uSky.uViewProj, false, S.vp);
+      gl.bindVertexArray(skyVAO);
+      gl.drawArrays(gl.TRIANGLES, 0, 36);
+      gl.depthMask(true);
+    }
+
+    // props (opaque)
+    if (PART === 'all' || PART === 'scene') {
+      gl.useProgram(propProg);
+    gl.uniform3fv(uProp.uLightDir, lightDir);
+    gl.uniform3fv(uProp.uAmbient, ambient);
+    gl.uniform3fv(uProp.uFogColor, fogCol);
+    gl.uniform1f(uProp.uFogPower, fogPower);
+    gl.uniform1f(uProp.uFogMult, fogMult);
+    gl.uniform1f(uProp.uFogOffset, fogOffset);
+    gl.uniform1f(uProp.uTime, clock);
+    gl.useProgram(propdProg);
+    gl.uniform3fv(uPropd.uLightDir, lightDir);
+    gl.uniform3fv(uPropd.uAmbient, ambient);
+    gl.uniform3fv(uPropd.uFogColor, fogCol);
+    gl.uniform1f(uPropd.uFogPower, fogPower);
+    gl.uniform1f(uPropd.uFogMult, fogMult);
+    gl.uniform1f(uPropd.uFogOffset, fogOffset);
+    gl.uniform1f(uPropd.uTime, clock);
+
+    for (const d of propDraws) {
+      const u = d.prog === propProg ? uProp : uPropd;
+      gl.useProgram(d.prog);
+      gl.uniformMatrix4fv(u.uModel, false, d.wm);
+      MAT4.mul(S.mvp, S.vp, d.wm);
+      gl.uniformMatrix4fv(u.uModelVP, false, S.mvp);
+      gl.uniform3fv(u.uCamPos, eye);
+      gl.uniform1f(u.uSway, d.sway);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, d.diffuse);
+      gl.uniform1i(u.uDiffuse, 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, d.normalMap);
+      gl.uniform1i(u.uNormalMap, 1);
+      gl.bindVertexArray(d.vao);
+      if (d.mesh.idx) gl.drawElements(gl.TRIANGLES, d.mesh.numIdx, gl.UNSIGNED_SHORT, 0);
+      else gl.drawArrays(gl.TRIANGLES, 0, d.mesh.numVerts);
+    }
+    }
+
+    // fish (instanced, JS-computed transforms)
+    if (PART === 'all' || PART === 'fish') {
+      gl.useProgram(fishProg);
+    gl.uniformMatrix4fv(uFish.uViewProj, false, S.vp);
+    gl.uniform3fv(uFish.uCamPos, eye);
+    gl.uniform3fv(uFish.uLightDir, lightDir);
+    gl.uniform3fv(uFish.uAmbient, ambient);
+    gl.uniform3fv(uFish.uFogColor, fogCol);
+    gl.uniform1f(uFish.uFogPower, fogPower);
+    gl.uniform1f(uFish.uFogMult, fogMult);
+    gl.uniform1f(uFish.uFogOffset, fogOffset);
+    for (const fs of fishSpecies) {
+      updateFish(fs, clock);
+      if (frames % 2 === 0) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, fs.instBuf);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, fs.instArr);
+      }
+      gl.uniform1f(uFish.uFishLength, fs.sp.fishLength);      gl.uniform1f(uFish.uFishWaveLength, fs.sp.waveLength);
+      gl.uniform1f(uFish.uFishBendAmount, fs.sp.bend);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, fs.diffuse);
+      gl.uniform1i(uFish.uDiffuse, 0);
+      gl.bindVertexArray(fs.vao);
+      const dn = Math.max(1, Math.floor(fs.n * INST_SCALE));
+      const dc = Math.max(3, Math.floor(fs.mesh.numIdx * TRI_SCALE));
+      gl.drawElementsInstanced(gl.TRIANGLES, dc, gl.UNSIGNED_SHORT, 0, dn);
+    }
+    }
+
+    if (timerExt && gpuFish.busy) {
+      gl.endQuery(timerExt.TIME_ELAPSED_EXT);
+      gpuFish.busy = false;
+    }
+    if (timerExt && gpuTotal.busy) {
+      gl.endQuery(timerExt.TIME_ELAPSED_EXT);
+      gpuTotal.busy = false;
+    }
+    if (timerExt) {
+      const availFish = gl.getQueryParameter(gpuFish.q, timerExt.QUERY_RESULT_AVAILABLE);
+      if (availFish) gpuFish.ms = gl.getQueryParameter(gpuFish.q, timerExt.QUERY_RESULT) / 1e6;
+      const availTotal = gl.getQueryParameter(gpuTotal.q, timerExt.QUERY_RESULT_AVAILABLE);
+      if (availTotal) gpuTotal.ms = gl.getQueryParameter(gpuTotal.q, timerExt.QUERY_RESULT) / 1e6;
+    }
+
+    // bubbles
+    if (PART === 'all' || PART === 'scene') {
+      gl.useProgram(bubbleProg);
+    gl.uniformMatrix4fv(uBubble.uViewProj, false, S.vp);
+    gl.uniform1f(uBubble.uTime, clock);
+    const tanH = Math.tan(VIEW.fov * Math.PI / 360);
+    gl.uniform2f(uBubble.uPixScale, 2.0 / (canvas.width * tanH), 2.0 / (canvas.height * tanH));
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    gl.bindVertexArray(bubbles.vao);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, bubbles.count);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+
+    // tank glass (translucent)
+    if (PART === 'all' || PART === 'scene') {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.useProgram(glassProg);
+      gl.uniformMatrix4fv(uGlass.uViewProj, false, S.vp);
+      gl.uniform3fv(uGlass.uCamPos, eye);
+      gl.uniform1f(uGlass.uTankColor, 0.8);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, skyTex);
+      gl.uniform1i(uGlass.uSky, 0);
+      for (const d of propDraws) {
+        if (d.mesh === models.GlobeInner[0]) {
+          gl.useProgram(glassProg);
+          gl.uniformMatrix4fv(uGlass.uModel, false, d.wm);
+          gl.bindVertexArray(d.vao);
+          gl.drawElements(gl.TRIANGLES, d.mesh.numIdx, gl.UNSIGNED_SHORT, 0);
+        }
+      }
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
+
+    // hud
+    jsMs = performance.now() - tStart;
+    frames++;
+    fpsAccum += dt;
+    if (fpsAccum >= 0.5) {
+      fps = Math.round(frames / fpsAccum);
+      frames = 0; fpsAccum = 0;
+      hudEl.innerHTML = fps + ' fps | fish ' + Math.round(gpuFish.ms * 10) / 10 + 'ms | total ' + Math.round(gpuTotal.ms * 10) / 10 + 'ms<br>' + TOTAL_FISH + ' fish';
+      document.title = 'AQGL2| ' + fps + ' | ' + (timerExt ? 'T' : 'NT') + Math.round(gpuFish.ms * 10) / 10 + '/' + Math.round(gpuTotal.ms * 10) / 10 + 'ms js' + Math.round(jsMs * 10) / 10 + ' dpr' + window.devicePixelRatio + ' ' + canvas.width + 'x' + canvas.height + ' (' + TOTAL_FISH + ' fish) - ImWebBrowser';
+    }
+  }
+
+  statusEl.style.display = 'none';
+  requestAnimationFrame(frame);
+}
+
+init().catch((e) => {
+  const msg = 'ERROR: ' + e.message + (e.stack ? ' | ' + e.stack.split('\n')[1] : '');
+  setStatus(msg);
+  try { document.title = 'AQGL2|' + msg.slice(0, 90); } catch (err) {}
+  console.error(e);
+});
+</script>
+</body>
+</html>

@@ -20,9 +20,6 @@ struct Config;
 /* Creates a new WebKitSettings populated from the configuration. */
 WebKitSettings* web_settings_create(const Config& config);
 
-/* Applies sandbox / network settings on the shared web context. */
-void web_settings_apply_context(WebKitWebContext* context, const Config& config);
-
 } /* namespace imwb */
 
 #endif /* IMWEBBROWSER_WEBKIT_WEB_SETTINGS_H */

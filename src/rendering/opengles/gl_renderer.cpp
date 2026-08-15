@@ -61,7 +61,12 @@ bool GlRenderer::initialize(Window& window)
         LOG_ERROR("GL: SDL_GL_MakeCurrent failed: %s", SDL_GetError());
         return false;
     }
-    SDL_GL_SetSwapInterval(1);
+    int swap_interval = 1;
+    const char* env = SDL_getenv("IMWB_SWAP_INTERVAL");
+    if (env && *env)
+        swap_interval = SDL_atoi(env);
+    SDL_GL_SetSwapInterval(swap_interval);
+    LOG_INFO("GL: swap interval %d", swap_interval);
 
     LOG_INFO("GL: renderer %s, version %s", (const char*)glGetString(GL_RENDERER),
              (const char*)glGetString(GL_VERSION));
@@ -217,6 +222,12 @@ void GlRenderer::on_egl_image(const EglFrame& frame)
                        m_webview_texture, GL_TEXTURE_2D, 0, 0, 0, 0,
                        frame.width, frame.height, 1);
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    /* Wait for the copy to actually execute before returning: the exportable
+     * callback hands the image straight back to WPE and signals frame_complete
+     * right after this, which may recycle the image and redraw into it while
+     * an unexecuted copy is still queued, showing as flicker/tearing. */
+    glFinish();
 
     m_frame_ready = true;
     m_frame_width = frame.width;

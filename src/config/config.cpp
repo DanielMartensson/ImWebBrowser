@@ -28,7 +28,6 @@ Config Config::defaults()
     c.web_audio = IMWEBBROWSER_DEFAULT_WEB_AUDIO;
     c.fullscreen_api = IMWEBBROWSER_DEFAULT_FULLSCREEN_API;
     c.developer_extras = IMWEBBROWSER_DEFAULT_DEVELOPER_EXTRAS;
-    c.sandbox = IMWEBBROWSER_DEFAULT_SANDBOX;
     c.smooth_scrolling = IMWEBBROWSER_DEFAULT_SMOOTH_SCROLLING;
     c.encrypted_media = IMWEBBROWSER_DEFAULT_ENCRYPTED_MEDIA;
     c.page_cache = IMWEBBROWSER_DEFAULT_PAGE_CACHE;
@@ -36,12 +35,8 @@ Config Config::defaults()
     c.spatial_navigation = IMWEBBROWSER_DEFAULT_SPATIAL_NAVIGATION;
     c.caret_browsing = IMWEBBROWSER_DEFAULT_CARET_BROWSING;
     c.tabs_to_links = IMWEBBROWSER_DEFAULT_TABS_TO_LINKS;
-    c.xss_auditor = IMWEBBROWSER_DEFAULT_XSS_AUDITOR;
     c.site_specific_quirks = IMWEBBROWSER_DEFAULT_SITE_SPECIFIC_QUIRKS;
     c.offline_app_cache = IMWEBBROWSER_DEFAULT_OFFLINE_APP_CACHE;
-    c.frame_flattening = IMWEBBROWSER_DEFAULT_FRAME_FLATTENING;
-    c.plugins = IMWEBBROWSER_DEFAULT_PLUGINS;
-    c.java = IMWEBBROWSER_DEFAULT_JAVA;
     c.html5_database = IMWEBBROWSER_DEFAULT_HTML5_DATABASE;
     c.hyperlink_auditing = IMWEBBROWSER_DEFAULT_HYPERLINK_AUDITING;
     c.resizable_text_areas = IMWEBBROWSER_DEFAULT_RESIZABLE_TEXT_AREAS;
@@ -111,8 +106,6 @@ Config Config::from_command_line(int argc, char** argv, bool* ok)
             c.fullscreen_api = false;
         } else if (arg == "--developer-extras") {
             c.developer_extras = true;
-        } else if (arg == "--no-sandbox") {
-            c.sandbox = false;
         } else if (arg == "--no-smooth-scrolling") {
             c.smooth_scrolling = false;
         } else if (arg == "--no-encrypted-media") {
@@ -127,18 +120,10 @@ Config Config::from_command_line(int argc, char** argv, bool* ok)
             c.caret_browsing = false;
         } else if (arg == "--no-tabs-to-links") {
             c.tabs_to_links = false;
-        } else if (arg == "--no-xss-auditor") {
-            c.xss_auditor = false;
         } else if (arg == "--no-site-specific-quirks") {
             c.site_specific_quirks = false;
         } else if (arg == "--no-offline-app-cache") {
             c.offline_app_cache = false;
-        } else if (arg == "--no-frame-flattening") {
-            c.frame_flattening = false;
-        } else if (arg == "--no-plugins") {
-            c.plugins = false;
-        } else if (arg == "--no-java") {
-            c.java = false;
         } else if (arg == "--no-html5-database") {
             c.html5_database = false;
         } else if (arg == "--no-hyperlink-auditing") {
@@ -192,7 +177,6 @@ void Config::print_summary() const
     LOG_INFO("Web audio          : %s", web_audio ? "yes" : "no");
     LOG_INFO("Fullscreen API     : %s", fullscreen_api ? "yes" : "no");
     LOG_INFO("Developer extras   : %s", developer_extras ? "yes" : "no");
-    LOG_INFO("Sandbox            : %s", sandbox ? "yes" : "no");
     LOG_INFO("Smooth scrolling   : %s", smooth_scrolling ? "yes" : "no");
     LOG_INFO("Encrypted media    : %s", encrypted_media ? "yes" : "no");
     LOG_INFO("Page cache         : %s", page_cache ? "yes" : "no");
@@ -200,12 +184,8 @@ void Config::print_summary() const
     LOG_INFO("Spatial navigation : %s", spatial_navigation ? "yes" : "no");
     LOG_INFO("Caret browsing     : %s", caret_browsing ? "yes" : "no");
     LOG_INFO("Tabs to links      : %s", tabs_to_links ? "yes" : "no");
-    LOG_INFO("XSS auditor        : %s", xss_auditor ? "yes" : "no");
     LOG_INFO("Site quirks        : %s", site_specific_quirks ? "yes" : "no");
     LOG_INFO("Offline app cache  : %s", offline_app_cache ? "yes" : "no");
-    LOG_INFO("Frame flattening   : %s", frame_flattening ? "yes" : "no");
-    LOG_INFO("Plugins            : %s", plugins ? "yes" : "no");
-    LOG_INFO("Java               : %s", java ? "yes" : "no");
     LOG_INFO("HTML5 databases  : %s", html5_database ? "yes" : "no");
     LOG_INFO("Hyperlink auditing : %s", hyperlink_auditing ? "yes" : "no");
     LOG_INFO("Resizable textareas: %s", resizable_text_areas ? "yes" : "no");
