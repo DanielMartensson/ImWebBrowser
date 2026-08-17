@@ -41,16 +41,16 @@ option(IMWEBBROWSER_BACKEND_OPENGL_ES "Render the web view through OpenGL ES" ON
 
 option(IMWEBBROWSER_ENABLE_JAVASCRIPT "Enable JavaScript in web pages" ON)
 option(IMWEBBROWSER_ENABLE_WEBGL "Enable WebGL" ON)
-option(IMWEBBROWSER_ENABLE_WEBRTC "Enable WebRTC" ON)
+option(IMWEBBROWSER_ENABLE_WEBRTC "Enable WebRTC" OFF)
 option(IMWEBBROWSER_ENABLE_MEDIA "Enable HTML audio/video playback" ON)
-option(IMWEBBROWSER_ENABLE_MEDIA_STREAM "Enable getUserMedia capture" ON)
-option(IMWEBBROWSER_ENABLE_WEB_AUDIO "Enable Web Audio" ON)
+option(IMWEBBROWSER_ENABLE_MEDIA_STREAM "Enable getUserMedia capture" OFF)
+option(IMWEBBROWSER_ENABLE_WEB_AUDIO "Enable Web Audio" OFF)
 option(IMWEBBROWSER_ENABLE_FULLSCREEN "Allow web pages to request fullscreen" ON)
 option(IMWEBBROWSER_ENABLE_DEVELOPER_EXTRAS "Enable the Web Inspector / developer extras" OFF)
 option(IMWEBBROWSER_ENABLE_SMOOTH_SCROLLING "Prefer smooth pixel axis scrolling" ON)
 option(IMWEBBROWSER_ENABLE_ENCRYPTED_MEDIA "Enable Encrypted Media Extensions (DRM)" ON)
 option(IMWEBBROWSER_ENABLE_PAGE_CACHE "Enable the back/forward page cache" ON)
-option(IMWEBBROWSER_ENABLE_DNS_PREFETCHING "Enable DNS prefetching of links" ON)
+option(IMWEBBROWSER_ENABLE_DNS_PREFETCHING "Enable DNS prefetching of links" OFF)
 option(IMWEBBROWSER_ENABLE_SPATIAL_NAVIGATION "Enable arrow-key spatial navigation" OFF)
 option(IMWEBBROWSER_ENABLE_CARET_BROWSING "Enable caret browsing mode" OFF)
 option(IMWEBBROWSER_ENABLE_TABS_TO_LINKS "Allow Tab to focus page links" ON)
@@ -123,7 +123,29 @@ find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
 
 # SDL3 (has a CMake config since 3.x).
-find_package(SDL3 CONFIG REQUIRED)
+#
+# Prefer an installed SDL3 (host, sysroot, or distribution package). When it
+# is not available - e.g. Linux Mint 22.3 and Yocto scarthgap ship no SDL3
+# package - fetch the SDL3 sources and build them here, so the browser still
+# builds without requiring an extra system dependency.
+set(IMWEBBROWSER_SDL3_VERSION "release-3.4.14" CACHE STRING
+    "SDL3 tag fetched when no installed SDL3 is found")
+find_package(SDL3 CONFIG QUIET)
+if(NOT SDL3_FOUND)
+    message(STATUS
+        "ImWebBrowser: SDL3 not found - fetching ${IMWEBBROWSER_SDL3_VERSION} from source")
+    include(FetchContent)
+    FetchContent_Declare(SDL3
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+        GIT_TAG ${IMWEBBROWSER_SDL3_VERSION}
+        GIT_SHALLOW TRUE)
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+    set(SDL_INSTALL_TESTS OFF CACHE BOOL "" FORCE)
+    set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(SDL3)
+endif()
 
 # WPE WebKit - probe the known pkg-config names, newest first.
 set(WPE_WEBKIT_PC_NAMES wpe-webkit-2.0 wpe-webkit-1.1 wpe-webkit-1.0)

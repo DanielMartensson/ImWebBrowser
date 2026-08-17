@@ -73,6 +73,11 @@ private:
     bool m_frame_ready = false;
     uint32_t m_frame_width = 0;
     uint32_t m_frame_height = 0;
+
+    /* Fence for asynchronous glCopyImageSubData: replaces glFinish() so
+     * the CPU isn't blocked while the GPU completes the copy. The previous
+     * frame's fence is waited before starting a new copy. */
+    GLsync m_pending_fence = nullptr;
 };
 
 } /* namespace imwb */

@@ -91,6 +91,28 @@ bool WebPage::create(FrameSink& sink, uint32_t width_px, uint32_t height_px,
                      G_CALLBACK(on_web_process_terminated), this);
     g_signal_connect(m_web_view, "create", G_CALLBACK(on_web_view_created), this);
 
+    /* Inject a user script to auto-dismiss cookie consent dialogs
+     * (YouTube, Google, etc.) by clicking "Reject all" or "Accept all". */
+    WebKitUserContentManager* ucm = webkit_web_view_get_user_content_manager(m_web_view);
+    static const char* consent_js =
+        "setTimeout(function() {\n"
+        "  var btns = document.querySelectorAll('button, [role=button]');\n"
+        "  for (var i = 0; i < btns.length; i++) {\n"
+        "    var t = btns[i].textContent.toLowerCase().trim();\n"
+        "    if (t === 'reject all' || t === 'accept all' || t === 'acceptera alla' ||\n"
+        "        t === 'avvisa alla' || t === 'i agree' || t === 'agree') {\n"
+        "      btns[i].click(); break;\n"
+        "    }\n"
+        "  }\n"
+        "}, 1500);\n";
+    WebKitUserScript* script = webkit_user_script_new(
+        consent_js,
+        WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+        WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END,
+        nullptr, nullptr);
+    webkit_user_content_manager_add_script(ucm, script);
+    webkit_user_script_unref(script);
+
     set_activity(true, true, true);
     return true;
 }

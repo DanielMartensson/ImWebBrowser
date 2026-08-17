@@ -91,6 +91,26 @@ void InputTranslator::dispatch_keyboard(SDL_Scancode scancode, uint16_t sdl_mods
      * "us" layout. This returns the keysym matching the desktop layout. */
     const uint32_t key_code = m_xkb.keysym_for_keycode(hardware_key_code, pressed);
 
+    /* If compose handling produced a fallback keysym (dead key's own
+     * character after a failed compose), dispatch it before the current key. */
+    if (pressed) {
+        uint32_t fallback = m_xkb.consume_pending_fallback();
+        if (fallback) {
+            struct wpe_input_keyboard_event fb{};
+            fb.time = SDL_GetTicks();
+            fb.key_code = fallback;
+            fb.hardware_key_code = hardware_key_code;
+            fb.pressed = true;
+            fb.modifiers = wpe_modifiers_from_sdl(sdl_mods);
+            wpe_view_backend_dispatch_keyboard_event(m_backend, &fb);
+            fb.pressed = false;
+            wpe_view_backend_dispatch_keyboard_event(m_backend, &fb);
+        }
+    }
+
+    if (key_code == 0)
+        return;
+
     struct wpe_input_keyboard_event event{};
     event.time = SDL_GetTicks();
     event.key_code = key_code;

@@ -61,7 +61,7 @@ bool GlRenderer::initialize(Window& window)
         LOG_ERROR("GL: SDL_GL_MakeCurrent failed: %s", SDL_GetError());
         return false;
     }
-    int swap_interval = 1;
+    int swap_interval = 0;
     const char* env = SDL_getenv("IMWB_SWAP_INTERVAL");
     if (env && *env)
         swap_interval = SDL_atoi(env);
@@ -114,6 +114,10 @@ bool GlRenderer::initialize(Window& window)
 
 void GlRenderer::shutdown()
 {
+    if (m_pending_fence) {
+        glDeleteSync(m_pending_fence);
+        m_pending_fence = nullptr;
+    }
     if (m_scratch_texture) {
         glDeleteTextures(1, &m_scratch_texture);
         m_scratch_texture = 0;
@@ -202,6 +206,16 @@ void GlRenderer::on_egl_image(const EglFrame& frame)
     if (frame.image == nullptr || !m_scratch_texture)
         return;
 
+    /* Wait for the previous frame's copy to finish before touching the
+     * scratch texture.  Unlike glFinish(), this only waits if the GPU is
+     * actually behind; when the fence has already signaled, the call is
+     * essentially free. */
+    if (m_pending_fence) {
+        glClientWaitSync(m_pending_fence, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+        glDeleteSync(m_pending_fence);
+        m_pending_fence = nullptr;
+    }
+
     /* Attach the EGL image to the scratch texture. */
     glBindTexture(GL_TEXTURE_2D, m_scratch_texture);
     g_egl_image_target_texture_2d(GL_TEXTURE_2D, reinterpret_cast<GLeglImageOES>(frame.image));
@@ -223,11 +237,12 @@ void GlRenderer::on_egl_image(const EglFrame& frame)
                        frame.width, frame.height, 1);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    /* Wait for the copy to actually execute before returning: the exportable
-     * callback hands the image straight back to WPE and signals frame_complete
-     * right after this, which may recycle the image and redraw into it while
-     * an unexecuted copy is still queued, showing as flicker/tearing. */
-    glFinish();
+    /* Place a fence so we can wait at the start of the *next* frame instead
+     * of blocking here.  This lets the exportable callback return to WPE
+     * immediately (WPE can start compositing the next frame on the GPU)
+     * while the copy is still in flight.  The fence is waited above before
+     * we touch the scratch texture again. */
+    m_pending_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
     m_frame_ready = true;
     m_frame_width = frame.width;

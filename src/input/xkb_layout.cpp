@@ -7,6 +7,7 @@
 #include <cstdio>
 
 #include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-compose.h>
 
 #include "logging/log.h"
 
@@ -75,6 +76,10 @@ void load_system_rmlvo(xkb_rule_names& names)
 
 XkbLayout::~XkbLayout()
 {
+    if (m_compose_state)
+        xkb_compose_state_unref(static_cast<struct xkb_compose_state*>(m_compose_state));
+    if (m_compose_table)
+        xkb_compose_table_unref(static_cast<struct xkb_compose_table*>(m_compose_table));
     if (m_state)
         xkb_state_unref(static_cast<struct xkb_state*>(m_state));
     if (m_keymap)
@@ -112,6 +117,25 @@ bool XkbLayout::initialize()
     }
     m_state = state;
 
+    /* Create compose table from locale for dead key support (e.g. Swedish). */
+    const char* locale = std::getenv("LC_ALL");
+    if (!locale || !*locale)
+        locale = std::getenv("LC_CTYPE");
+    if (!locale || !*locale)
+        locale = std::getenv("LANG");
+    if (!locale || !*locale)
+        locale = "C";
+    auto* compose_table = xkb_compose_table_new_from_locale(ctx, locale, XKB_COMPOSE_COMPILE_NO_FLAGS);
+    if (compose_table) {
+        m_compose_table = compose_table;
+        auto* compose_state = xkb_compose_state_new(compose_table, XKB_COMPOSE_STATE_NO_FLAGS);
+        if (compose_state)
+            m_compose_state = compose_state;
+        LOG_INFO("XKB: compose table loaded for dead key support");
+    } else {
+        LOG_WARN("XKB: no compose table available (dead keys disabled)");
+    }
+
     LOG_INFO("XKB: keymap loaded (layout %s)",
              names.layout ? names.layout :
              (std::getenv("XKB_DEFAULT_LAYOUT") ? std::getenv("XKB_DEFAULT_LAYOUT") : "us"));
@@ -131,9 +155,46 @@ uint32_t XkbLayout::keysym_for_keycode(uint32_t keycode, bool pressed)
 
     const xkb_keysym_t* syms = nullptr;
     int count = xkb_state_key_get_syms(state, keycode, &syms);
-    if (count > 0)
-        return syms[0];
-    return 0;
+    uint32_t raw_keysym = (count > 0) ? syms[0] : 0;
+
+    /* Feed through compose state for dead key support (key-down only). */
+    auto* compose = static_cast<struct xkb_compose_state*>(m_compose_state);
+    if (!compose || !pressed)
+        return raw_keysym;
+
+    xkb_compose_state_feed(compose, raw_keysym);
+
+    switch (xkb_compose_state_get_status(compose)) {
+    case XKB_COMPOSE_COMPOSING:
+        /* Dead key pressed — remember its own keysym for fallback,
+         * suppress the event (return 0) while we wait for the next key. */
+        m_pending_fallback = raw_keysym;
+        return 0;
+
+    case XKB_COMPOSE_COMPOSED: {
+        /* Compose sequence completed (e.g. ¨+a -> å). */
+        uint32_t composed = xkb_compose_state_get_one_sym(compose);
+        m_pending_fallback = 0;
+        return composed ? composed : raw_keysym;
+    }
+
+    case XKB_COMPOSE_CANCELLED: {
+        /* Dead key followed by a non-composing key. Emit the dead key's
+         * own character first (via pending fallback), then this key. */
+        return raw_keysym;
+    }
+
+    default: /* XKB_COMPOSE_NOTHING */
+        m_pending_fallback = 0;
+        return raw_keysym;
+    }
+}
+
+uint32_t XkbLayout::consume_pending_fallback()
+{
+    uint32_t sym = m_pending_fallback;
+    m_pending_fallback = 0;
+    return sym;
 }
 
 } /* namespace imwb */
