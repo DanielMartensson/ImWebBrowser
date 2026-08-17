@@ -99,6 +99,10 @@ bool GlRenderer::initialize(Window& window)
     /* Scratch texture that EGL images are bound into. */
     glGenTextures(1, &m_scratch_texture);
 
+    /* FBOs for the glBlitFramebuffer copy (GLES 3.0+). */
+    glGenFramebuffers(1, &m_scratch_fbo);
+    glGenFramebuffers(1, &m_webview_fbo);
+
     if (!ImGui_ImplOpenGL3_Init("#version 300 es")) {
         LOG_ERROR("GL: ImGui_ImplOpenGL3_Init failed");
         return false;
@@ -117,6 +121,14 @@ void GlRenderer::shutdown()
     if (m_pending_fence) {
         glDeleteSync(m_pending_fence);
         m_pending_fence = nullptr;
+    }
+    if (m_scratch_fbo) {
+        glDeleteFramebuffers(1, &m_scratch_fbo);
+        m_scratch_fbo = 0;
+    }
+    if (m_webview_fbo) {
+        glDeleteFramebuffers(1, &m_webview_fbo);
+        m_webview_fbo = 0;
     }
     if (m_scratch_texture) {
         glDeleteTextures(1, &m_scratch_texture);
@@ -231,11 +243,22 @@ void GlRenderer::on_egl_image(const EglFrame& frame)
 
     ensure_webview_texture(static_cast<GLenum>(internal_format), frame.width, frame.height);
 
-    /* GPU-only copy into our owned texture, then release the image. */
-    glCopyImageSubData(m_scratch_texture, GL_TEXTURE_2D, 0, 0, 0, 0,
-                       m_webview_texture, GL_TEXTURE_2D, 0, 0, 0, 0,
-                       frame.width, frame.height, 1);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    /* GPU-only blit into our owned texture via glBlitFramebuffer (GLES 3.0),
+     * then release the image.  Works on VeriSilicon GC7000 (ES 3.1) unlike
+     * glCopyImageSubData which requires ES 3.2. */
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, m_scratch_fbo);
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, m_scratch_texture, 0);
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_webview_fbo);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, m_webview_texture, 0);
+
+    glBlitFramebuffer(0, 0, frame.width, frame.height,
+                      0, 0, frame.width, frame.height,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     /* Place a fence so we can wait at the start of the *next* frame instead
      * of blocking here.  This lets the exportable callback return to WPE

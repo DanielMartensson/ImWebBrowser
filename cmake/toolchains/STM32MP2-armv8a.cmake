@@ -1,7 +1,7 @@
 # STM32MP2 (Arm Cortex-A35) cross-compilation toolchain for ImWebBrowser.
 #
 # ImWebBrowser targets Linux on STMicroelectronics STM32MP2 boards
-# (STM32MP25x, Cortex-A35, Mali-G57 GPU). The build runs on an x86-64 host
+# (STM32MP25x, Cortex-A35, VeriSilicon GC7000 GPU). The build runs on an x86-64 host
 # and produces an aarch64 binary that runs on the board's OpenSTLinux BSP.
 #
 # Two ways to use this file:
@@ -26,7 +26,7 @@
 #
 # The target sysroot must contain the runtime dependencies (see README):
 #   libsdl3, libwpewebkit-2.0, wpebackend-fdo, libwpe, glib, wayland-server,
-#   xkbcommon, libegl, libglesv2 (Mesa/panfrost for the Mali-G57).
+#   xkbcommon, libegl, libglesv2 (Mesa/etnaviv for the VeriSilicon GC7000).
 
 set(STM32MP2_SYSROOT "" CACHE PATH "STM32MP2 target sysroot")
 set(STM32MP2_CROSS_COMPILE "" CACHE STRING "Cross compiler prefix (e.g. aarch64-linux-gnu- or aarch64-ostl-linux-gnu-)")

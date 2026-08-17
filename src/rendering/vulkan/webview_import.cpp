@@ -168,7 +168,7 @@ bool WebViewImporter::create_slot(Slot& slot, const DmaBufFrame& frame, bool* fd
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    /* Try OPTIMAL tiling first (works with AFBC on Mali-G57), then fall
+    /* Try OPTIMAL tiling first (works with AFBC on VeriSilicon GC7000), then fall
      * back to LINEAR for drivers that only support linear dmabuf import. */
     image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
     VkResult result = vkCreateImage(m_device, &image_info, nullptr, &slot.image);

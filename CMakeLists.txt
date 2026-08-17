@@ -3,7 +3,7 @@
 #
 # Targets:
 #   - x86-64 Linux (development host) - native build.
-#   - STM32MP2 (Arm Cortex-A35, Mali-G57) - cross-compiled. Pass
+#   - STM32MP2 (Arm Cortex-A35, VeriSilicon GC7000) - cross-compiled. Pass
 #     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/STM32MP2-armv8a.cmake.
 #     All dependencies are resolved through the target sysroot's pkg-config
 #     and CMake configs (see README "Cross-compiling for STM32MP2").

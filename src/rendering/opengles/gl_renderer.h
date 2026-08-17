@@ -1,15 +1,16 @@
-/* ImWebBrowser - OpenGL ES 3 renderer.
+/* ImWebBrowser - OpenGL ES 3.1 renderer.
  *
  * WPE renders into EGL images on the same EGL display as the SDL GL
  * context (display sharing via wpe_fdo_initialize_for_egl_display). Each
  * exported frame is:
  *
  *   1. bound to a scratch texture (glEGLImageTargetTexture2DOES),
- *   2. copied GPU-only into an owned texture (glCopyImageSubData),
+ *   2. blitted GPU-only into an owned texture (glBlitFramebuffer),
  *   3. released back to WPE immediately,
  *   4. drawn by ImGui via ImGui::Image().
  *
  * No pixel data ever passes through the CPU.
+ * Uses GLES 3.1 APIs (VeriSilicon GC7000 compatible).
  */
 
 #ifndef IMWEBBROWSER_RENDERING_OPENGLES_GL_RENDERER_H
@@ -17,7 +18,7 @@
 
 #include <cstdint>
 
-#include <GLES3/gl32.h>
+#include <GLES3/gl31.h>
 #include <SDL3/SDL.h>
 
 #include "rendering/renderer.h"
@@ -66,6 +67,8 @@ private:
     void* m_egl_display = nullptr;
 
     GLuint m_scratch_texture = 0;
+    GLuint m_scratch_fbo = 0;
+    GLuint m_webview_fbo = 0;
     GLuint m_webview_texture = 0;
     uint32_t m_webview_width = 0;
     uint32_t m_webview_height = 0;
@@ -74,9 +77,9 @@ private:
     uint32_t m_frame_width = 0;
     uint32_t m_frame_height = 0;
 
-    /* Fence for asynchronous glCopyImageSubData: replaces glFinish() so
-     * the CPU isn't blocked while the GPU completes the copy. The previous
-     * frame's fence is waited before starting a new copy. */
+    /* Fence for asynchronous blit: replaces glFinish() so the CPU isn't
+     * blocked while the GPU completes the copy. The previous frame's fence
+     * is waited before starting a new copy. */
     GLsync m_pending_fence = nullptr;
 };
 

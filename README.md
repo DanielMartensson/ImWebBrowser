@@ -32,7 +32,7 @@ with Mesa 25.2.8 and WPE WebKit 2.38. Real content renders and is interactive on
 The keyboard layout follows the system XKB keymap (Swedish on the test machine).
 
 Primary deployment target: **STM32MP2 microprocessors** (Arm Cortex-A35 +
-Mali-G57). The codebase is architecture-neutral and cross-compiles from an
+VeriSilicon GC7000). The codebase is architecture-neutral and cross-compiles from an
 x86-64 host; see [Cross-compiling for STM32MP2](#cross-compiling-for-stm32mp2).
 
 ## Build
@@ -99,8 +99,8 @@ no-ops if the distro's `libwpewebkit` was built without those features.
 ## Cross-compiling for STM32MP2
 
 ImWebBrowser targets STMicroelectronics STM32MP2 (STM32MP25x) boards running
-OpenSTLinux: Arm Cortex-A35 CPU and a Mali-G57 GPU driven by Mesa's Panfrost
-(OpenGL ES) or the BSP's Vulkan stack. Nothing in the code is
+OpenSTLinux: Arm Cortex-A35 CPU and a VeriSilicon GC7000 GPU driven by Mesa's Etnaviv
+(OpenGL ES 3.1) or V3DV (Vulkan 1.3). Nothing in the code is
 architecture-specific, so the same sources cross-compile from any x86-64 host.
 
 ### Target runtime dependencies
@@ -114,7 +114,7 @@ BSP or your distro's `lib`/`-dev` packages):
 | `libwpe-1.0-dev` | WPE base library                                   |
 | `libwpebackend-fdo-1.0-dev` | Frame export (EGL image / dmabuf)       |
 | `libwpewebkit-2.0-dev` (or `-1.1`) | WebKit engine                    |
-| `libegl-dev` `libgles2-dev` | GLES 3.x (Mesa/panfrost)          |
+| `libegl-dev` `libgles2-dev` | GLES 3.1 (Mesa/etnaviv)             |
 | `libwayland-dev` | wpebackend-fdo + SDL3 Wayland backend              |
 | `libxkbcommon-dev` | Keyboard layout                                   |
 | `libglib2.0-dev` | GLib/gobject (WebKit + GLib main loop)             |
