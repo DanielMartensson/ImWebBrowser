@@ -21,17 +21,16 @@ bool WpeModule::initialize(void* egl_display)
         return false;
     }
 
-    /* Force Mesa to use the native DRI driver (i965/crocus) instead of
-     * Zink (OpenGL-over-Vulkan).  Zink adds a translation layer that
-     * hurts performance on older GPUs and triggers "incomplete Vulkan
-     * support" warnings on Haswell.  Must be set before WPE spawns its
-     * sandboxed WebProcess so the child inherits it. */
+    /* On Intel GPUs, force the native DRI driver (i965) instead of Zink
+     * (OpenGL-over-Vulkan).  Only effective on x86; harmless on ARM. */
+#if defined(__x86_64__) || defined(__i386__)
     if (!g_getenv("MESA_LOADER_DRIVER_OVERRIDE"))
         g_setenv("MESA_LOADER_DRIVER_OVERRIDE", "i965", TRUE);
+#endif
 
     /* Disable the WebProcess sandbox so it can access /dev/dri directly.
      * Without this, Mesa falls back to Vulkan/Zink inside the sandbox,
-     * causing performance warnings on Haswell. */
+     * causing performance warnings on Haswell GPUs. */
     if (!g_getenv("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS"))
         g_setenv("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1", TRUE);
 
