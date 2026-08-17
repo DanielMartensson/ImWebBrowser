@@ -26,12 +26,11 @@ void vk_check(VkResult result)
 bool VulkanRenderer::create_instance()
 {
     uint32_t extension_count = 0;
-    if (!SDL_Vulkan_GetInstanceExtensions(m_window->sdl_window(), &extension_count, nullptr)) {
+    const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&extension_count);
+    if (!extensions) {
         LOG_ERROR("VK: SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
         return false;
     }
-    std::vector<const char*> extensions(extension_count);
-    SDL_Vulkan_GetInstanceExtensions(m_window->sdl_window(), &extension_count, extensions.data());
 
     VkApplicationInfo app_info{};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -43,15 +42,15 @@ bool VulkanRenderer::create_instance()
     VkInstanceCreateInfo instance_info{};
     instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instance_info.pApplicationInfo = &app_info;
-    instance_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    instance_info.ppEnabledExtensionNames = extensions.data();
+    instance_info.enabledExtensionCount = extension_count;
+    instance_info.ppEnabledExtensionNames = extensions;
 
     const VkResult result = vkCreateInstance(&instance_info, nullptr, &m_instance);
     if (result != VK_SUCCESS) {
         LOG_ERROR("VK: vkCreateInstance failed: %d", static_cast<int>(result));
         return false;
     }
-    LOG_INFO("VK: instance created (%zu extensions)", extensions.size());
+    LOG_INFO("VK: instance created (%u extensions)", extension_count);
     return true;
 }
 
@@ -411,7 +410,7 @@ void VulkanRenderer::frame_render()
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_info.renderPass = wd->RenderPass;
     render_pass_info.framebuffer = frame->Framebuffer;
-    render_pass_info.renderArea = {{0, 0}, {wd->Width, wd->Height}};
+    render_pass_info.renderArea = {{0, 0}, {static_cast<uint32_t>(wd->Width), static_cast<uint32_t>(wd->Height)}};
     render_pass_info.clearValueCount = 1;
     render_pass_info.pClearValues = &clear_value;
     vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);

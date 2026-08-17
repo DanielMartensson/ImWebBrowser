@@ -280,7 +280,7 @@ int Application::run(const Config& config)
 #if defined(IMWEBBROWSER_BACKEND_VULKAN)
         auto* vk_renderer = static_cast<VulkanRenderer*>(m_renderer);
         texture.valid = vk_renderer->frame_ready();
-        texture.handle = static_cast<uint64_t>(vk_renderer->webview_texture());
+        texture.handle = reinterpret_cast<uint64_t>(vk_renderer->webview_texture());
         texture.width = vk_renderer->frame_width();
         texture.height = vk_renderer->frame_height();
 #else

@@ -307,8 +307,9 @@ add_executable(imwebbrowser
     src/application/application.cpp
     src/application/application.h)
 
+string(TOUPPER "${IMWEBBROWSER_ACTIVE_BACKEND}" _UPPER_BACKEND)
 target_compile_definitions(imwebbrowser PRIVATE
-    IMWEBBROWSER_BACKEND_${IMWEBBROWSER_ACTIVE_BACKEND}=1)
+    IMWEBBROWSER_BACKEND_${_UPPER_BACKEND}=1)
 
 target_include_directories(imwebbrowser PRIVATE src ${CMAKE_CURRENT_BINARY_DIR})
 

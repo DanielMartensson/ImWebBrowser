@@ -53,7 +53,7 @@ void WebViewImporter::initialize(VkDevice device, VkPhysicalDevice physical_devi
     VkPhysicalDeviceExternalBufferInfo ext_info{};
     ext_info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO;
     ext_info.flags = 0;
-    ext_info.usage = VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_SAMPLED_BIT;
+    ext_info.usage = VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
     ext_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
     VkExternalBufferProperties ext_props{};
@@ -108,7 +108,6 @@ bool WebViewImporter::wait_slot(Slot& slot)
     VkSemaphoreWaitInfo wait_info{VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
     wait_info.semaphoreCount = 1;
     wait_info.pSemaphores = &slot.semaphore;
-    wait_info.timeout = UINT64_MAX;
     const VkResult result = vkWaitSemaphores(m_device, &wait_info, UINT64_MAX);
     if (result != VK_SUCCESS) {
         LOG_ERROR("VK: waiting for import slot failed: %d", static_cast<int>(result));
@@ -126,7 +125,7 @@ uint32_t WebViewImporter::pick_memory_type() const
     for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
         VkPhysicalDeviceExternalBufferInfo ext_info{};
         ext_info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO;
-        ext_info.usage = VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_SAMPLED_BIT;
+        ext_info.usage = VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
         ext_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
         VkExternalBufferProperties ext_props{};
@@ -165,12 +164,18 @@ bool WebViewImporter::create_slot(Slot& slot, const DmaBufFrame& frame, bool* fd
     image_info.mipLevels = 1;
     image_info.arrayLayers = 1;
     image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_info.tiling = VK_IMAGE_TILING_LINEAR;
     image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
+    /* Try OPTIMAL tiling first (works with AFBC on Mali-G57), then fall
+     * back to LINEAR for drivers that only support linear dmabuf import. */
+    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
     VkResult result = vkCreateImage(m_device, &image_info, nullptr, &slot.image);
+    if (result != VK_SUCCESS) {
+        image_info.tiling = VK_IMAGE_TILING_LINEAR;
+        result = vkCreateImage(m_device, &image_info, nullptr, &slot.image);
+    }
     if (result != VK_SUCCESS) {
         LOG_ERROR("VK: vkCreateImage for dmabuf import failed: %d", static_cast<int>(result));
         return false;
