@@ -150,51 +150,38 @@ endif()
 # ---------------------------------------------------------------------------
 # WPE stack: try pkg-config first, fetch from source if not found.
 # ---------------------------------------------------------------------------
-include(ExternalProject)
-
 set(IMWEBBROWSER_LIBWPE_VERSION "1.15.2" CACHE STRING "libwpe version to fetch")
 set(IMWEBBROWSER_WPEBACKEND_FDO_VERSION "1.15.90" CACHE STRING "wpebackend-fdo version to fetch")
 set(IMWEBBROWSER_WPEWEBKIT_VERSION "2.53.90" CACHE STRING "WPE WebKit version to fetch")
 
-set(IMWEBBROWSER_DEPS_INSTALL_DIR "${CMAKE_BINARY_DIR}/wpe-deps-install")
-set(IMWEBBROWSER_DEPS_INCLUDE_DIR "${IMWEBBROWSER_DEPS_INSTALL_DIR}/include")
-set(IMWEBBROWSER_DEPS_LIB_DIR "${IMWEBBROWSER_DEPS_INSTALL_DIR}/lib")
-set(IMWEBBROWSER_DEPS_PKG_DIR "${IMWEBBROWSER_DEPS_INSTALL_DIR}/lib/pkgconfig")
-
 # libwpe — base library for WPE backends.
 pkg_check_modules(WPE IMPORTED_TARGET wpe-1.0)
-if(NOT WPE_FOUND)
+if(NOT WPE_FOUND AND NOT CMAKE_CROSSCOMPILING)
     message(STATUS "ImWebBrowser: libwpe not found - fetching v${IMWEBBROWSER_LIBWPE_VERSION} from source")
-    ExternalProject_Add(wpe_ext
+    include(FetchContent)
+    FetchContent_Declare(wpe_src
         URL "https://github.com/WebPlatformForEmbedded/libwpe/archive/refs/tags/${IMWEBBROWSER_LIBWPE_VERSION}.tar.gz"
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-        PREFIX "${CMAKE_BINARY_DIR}/libwpe"
-        CONFIGURE_COMMAND meson setup <BINARY_DIR> <SOURCE_DIR>
-            --prefix=<INSTALL_DIR>
-            --cross-file=/dev/null
-            -Ddefault_library=shared
-        BUILD_COMMAND ninja -C <BINARY_DIR>
-        INSTALL_COMMAND ninja -C <BINARY_DIR> install
-        BUILD_IN_SOURCE FALSE
-        INSTALL_DIR "${IMWEBBROWSER_DEPS_INSTALL_DIR}")
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    FetchContent_MakeAvailable(wpe_src)
+    set(WPE_INCLUDE_DIRS "${wpe_src_SOURCE_DIR}/include" CACHE STRING "")
+    set(WPE_LINK_LIBRARIES "${wpe_src_BINARY_DIR}/lib/libwpe-1.0.so" CACHE STRING "")
+elseif(NOT WPE_FOUND)
+    message(FATAL_ERROR "ImWebBrowser: libwpe not found. Add it to your recipe DEPENDS.")
 endif()
 
 # wpebackend-fdo — Freedesktop.org backend for WPE (EGL/dmabuf/Wayland).
 pkg_check_modules(WPE_FDO IMPORTED_TARGET wpebackend-fdo-1.0)
-if(NOT WPE_FDO_FOUND)
+if(NOT WPE_FDO_FOUND AND NOT CMAKE_CROSSCOMPILING)
     message(STATUS "ImWebBrowser: wpebackend-fdo not found - fetching v${IMWEBBROWSER_WPEBACKEND_FDO_VERSION} from source")
-    ExternalProject_Add(wpebackend_fdo_ext
+    include(FetchContent)
+    FetchContent_Declare(wpebackend_fdo_src
         URL "https://github.com/Igalia/WPEBackend-fdo/archive/refs/tags/${IMWEBBROWSER_WPEBACKEND_FDO_VERSION}.tar.gz"
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-        PREFIX "${CMAKE_BINARY_DIR}/wpebackend-fdo"
-        CONFIGURE_COMMAND meson setup <BINARY_DIR> <SOURCE_DIR>
-            --prefix=<INSTALL_DIR>
-            --cross-file=/dev/null
-            -Ddefault_library=shared
-        BUILD_COMMAND ninja -C <BINARY_DIR>
-        INSTALL_COMMAND ninja -C <BINARY_DIR> install
-        BUILD_IN_SOURCE FALSE
-        INSTALL_DIR "${IMWEBBROWSER_DEPS_INSTALL_DIR}")
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    FetchContent_MakeAvailable(wpebackend_fdo_src)
+    set(WPE_FDO_INCLUDE_DIRS "${wpebackend_fdo_src_SOURCE_DIR}/include" CACHE STRING "")
+    set(WPE_FDO_LINK_LIBRARIES "${wpebackend_fdo_src_BINARY_DIR}/lib/libWPEBackend-fdo-1.0.so" CACHE STRING "")
+elseif(NOT WPE_FDO_FOUND)
+    message(FATAL_ERROR "ImWebBrowser: wpebackend-fdo not found. Add it to your recipe DEPENDS.")
 endif()
 
 # WPE WebKit — the main browser engine.
@@ -207,22 +194,13 @@ foreach(_name IN LISTS WPE_WEBKIT_PC_NAMES)
         break()
     endif()
 endforeach()
-if(NOT WPE_WEBKIT_FOUND)
+if(NOT WPE_WEBKIT_FOUND AND NOT CMAKE_CROSSCOMPILING)
     message(STATUS "ImWebBrowser: WPE WebKit not found - fetching v${IMWEBBROWSER_WPEWEBKIT_VERSION} from source")
-    ExternalProject_Add(wpewebkit_ext
-        URL "https://github.com/WebKit/WebKit/archive/refs/tags/wpewebkit-${IMWEBBROWSER_WPEWEBKIT_VERSION}.tar.gz"
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-        PREFIX "${CMAKE_BINARY_DIR}/wpewebkit"
-        CMAKE_ARGS
-            -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-            -DCMAKE_BUILD_TYPE=Release
-            -DPORT=WPE
-            -DENABLE_THUNDER=OFF
-            -DENABLE_ENCRYPTED_MEDIA=OFF
-            -DENABLE_MINIBROWSER=OFF
-        BUILD_COMMAND cmake --build <BINARY_DIR> --parallel 1
-        BUILD_IN_SOURCE FALSE
-        INSTALL_DIR "${IMWEBBROWSER_DEPS_INSTALL_DIR}")
+    message(FATAL_ERROR "ImWebBrowser: WPE WebKit source build requires system-installed dependencies.\n"
+        "On Yocto, add wpewebkit to your recipe DEPENDS.\n"
+        "On desktop, install wpewebkit-dev or build the stack manually.")
+elseif(NOT WPE_WEBKIT_FOUND)
+    message(FATAL_ERROR "ImWebBrowser: WPE WebKit not found. Add wpewebkit to your recipe DEPENDS.")
 endif()
 pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0 gobject-2.0)
 pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)

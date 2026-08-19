@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImWebBrowser Documentation</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #c9d1d9;
+  --text-dim: #8b949e; --accent: #58a6ff; --accent-dim: #1f6feb;
+  --green: #3fb950; --red: #f85149; --yellow: #d29922; --orange: #db6d28;
+  --code-bg: #0d1117; --code-border: #30363d;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+       background: var(--bg); color: var(--text); line-height: 1.6; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Layout */
+.container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+header { padding: 48px 0 32px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+header h1 { font-size: 2.2em; font-weight: 700; }
+header p { color: var(--text-dim); margin-top: 8px; font-size: 1.05em; }
+
+/* Search */
+#search-box { width: 100%; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border);
+               border-radius: 6px; color: var(--text); font-size: 14px; margin-bottom: 32px; outline: none; }
+#search-box:focus { border-color: var(--accent); }
+
+/* TOC */
+.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+       padding: 20px 24px; margin-bottom: 40px; }
+.toc h2 { font-size: 1em; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+.toc ul { list-style: none; }
+.toc li { padding: 3px 0; }
+.toc li a { font-size: 0.95em; }
+
+/* Sections */
+section { margin-bottom: 48px; }
+section > h2 { font-size: 1.5em; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+section > h3 { font-size: 1.15em; margin: 24px 0 10px; color: var(--accent); }
+
+/* Code */
+pre { background: var(--code-bg); border: 1px solid var(--code-border); border-radius: 6px;
+      padding: 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 12px 0 20px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace; }
+code { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.9em; }
+:not(pre) > code { background: rgba(110,118,129,0.15); padding: 2px 6px; border-radius: 3px; }
+.kw { color: #ff7b72; } .fn { color: #d2a8ff; } .str { color: #a5d6ff; }
+.cmt { color: #8b949e; font-style: italic; } .num { color: #79c0ff; } .type { color: #ffa657; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.9em; }
+th, td { padding: 8px 12px; text-align: left; border: 1px solid var(--border); }
+th { background: var(--surface); font-weight: 600; color: var(--text-dim); }
+td code { font-size: 0.85em; }
+
+/* Collapsible */
+details { margin: 12px 0; }
+details summary { cursor: pointer; padding: 8px 0; font-weight: 600; color: var(--accent); font-size: 0.95em; }
+details summary:hover { color: var(--text); }
+details[open] summary { margin-bottom: 8px; }
+
+/* File entry */
+.file-entry { background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+              padding: 16px; margin: 10px 0; }
+.file-entry h4 { font-size: 0.95em; color: var(--green); }
+.file-entry .lines { color: var(--text-dim); font-size: 0.8em; margin-left: 8px; }
+.file-entry p { margin-top: 6px; font-size: 0.9em; color: var(--text-dim); }
+
+/* Badge */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75em;
+         font-weight: 600; text-transform: uppercase; margin-left: 6px; }
+.badge-on { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge-off { background: rgba(248,81,73,0.15); color: var(--red); }
+.badge-optional { background: rgba(210,153,34,0.15); color: var(--yellow); }
+
+/* Diagram */
+.diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+           padding: 20px; margin: 16px 0; overflow-x: auto; font-size: 13px; line-height: 1.4; }
+.diagram pre { border: none; padding: 0; margin: 0; background: transparent; }
+
+/* Responsive */
+@media (max-width: 640px) {
+  header h1 { font-size: 1.5em; }
+  .container { padding: 0 12px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>ImWebBrowser</h1>
+  <p>A minimal, GPU-accelerated web browser &mdash; WPE WebKit + Dear ImGui + SDL3</p>
+  <p style="color:var(--text-dim);font-size:0.85em;margin-top:4px;">v1.0.0 &bull; ~4,500 lines of first-party C++23 &bull; <a href="graph3d.html" style="color:var(--accent);">3D Call Graph &rarr;</a></p>
+</header>
+
+<input type="text" id="search-box" placeholder="Search documentation... (e.g. 'on_egl_image', 'frame loop', 'kiosk')">
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ul>
+    <li><a href="#overview">1. Overview</a></li>
+    <li><a href="#architecture">2. Architecture</a></li>
+    <li><a href="#build">3. Building</a></li>
+    <li><a href="#cli">4. CLI Reference</a></li>
+    <li><a href="#source-map">5. Source Map</a></li>
+    <li><a href="#frame-loop">6. Frame Loop</a></li>
+    <li><a href="#renderers">7. Renderers (GL ES / Vulkan)</a></li>
+    <li><a href="#frame-pipeline">8. Frame Pipeline</a></li>
+    <li><a href="#input">9. Input Handling</a></li>
+    <li><a href="#webkit">10. WPE WebKit Integration</a></li>
+    <li><a href="#ui">11. UI / ImGui</a></li>
+    <li><a href="#config">12. Configuration</a></li>
+    <li><a href="#security">13. Security</a></li>
+    <li><a href="#cross-compile">14. Cross-compilation (STM32MP2)</a></li>
+    <li><a href="#call-graph">15. Call Graph</a></li>
+    <li><a href="#ui-mockup">16. UI Mockup</a></li>
+    <li><a href="#index">17. Function Index</a></li>
+  </ul>
+</nav>
+
+<!-- ============================================================ -->
+<section id="overview">
+<h2>1. Overview</h2>
+<p>ImWebBrowser is a minimal GPU-accelerated web browser that renders web content via WPE WebKit and displays it using Dear ImGui on an SDL3 window. It supports two rendering backends: <strong>OpenGL ES 3.1</strong> (default, for embedded targets like STM32MP257F) and <strong>Vulkan</strong> (for desktop GPUs with dmabuf support).</p>
+<p>Key design principles:</p>
+<ul style="margin:12px 0 0 20px;">
+  <li><strong>Zero-copy GPU frame path</strong> &mdash; web frames never touch the CPU (except SHM fallback)</li>
+  <li><strong>Single-process</strong> &mdash; no IPC overhead between browser and renderer threads</li>
+  <li><strong>Embedded-first</strong> &mdash; GLES 3.1 target (VeriSilicon GC7000), runs on aarch64 Cortex-A35</li>
+  <li><strong>~4,500 lines</strong> of first-party code across 24 source files</li>
+</ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="architecture">
+<h2>2. Architecture</h2>
+
+<h3>Component Overview</h3>
+<div class="diagram"><pre>
+<span class="type">Application</span>  (src/application/)
+    |
+    +-- <span class="type">Window</span>           (src/platform/)         SDL3 window wrapper
+    +-- <span class="type">Renderer*</span>        (src/rendering/)        GL ES 3.1 or Vulkan (polymorphic)
+    +-- <span class="type">Browser</span>          (src/browser/)          WPE module + WebPage + Viewport
+    |     +-- <span class="type">WpeModule</span>    (src/webkit/)           WPE init + GLib main loop pump
+    |     +-- <span class="type">WebPage</span>      (src/webkit/)           WPE view backend + export callbacks
+    +-- <span class="type">BrowserUi</span>        (src/ui/)               ImGui toolbar + web view quad
+    +-- <span class="type">InputTranslator</span>  (src/input/)            SDL3 events &rarr; WPE input events
+          +-- <span class="type">XkbLayout</span>   (src/input/)            XKB keymap + dead key compose
+</pre></div>
+
+<h3>Ownership Diagram</h3>
+<div class="diagram"><pre>
+<span class="type">Application</span> (value)
+  <span class="fn">m_config</span>    : <span class="type">Config</span>         (value)
+  <span class="fn">m_window</span>    : <span class="type">Window</span>         (value)
+  <span class="fn">m_renderer</span>  : <span class="type">Renderer*</span>      (heap, polymorphic)
+  <span class="fn">m_browser</span>   : <span class="type">Browser</span>        (value)
+    <span class="fn">m_wpe</span>      : <span class="type">WpeModule</span>     (value)
+    <span class="fn">m_page</span>     : <span class="type">WebPage</span>       (value)
+      <span class="fn">m_sink</span>   : <span class="type">FrameSink*</span>    (non-owning &rarr; Renderer)
+      <span class="fn">m_exportable</span> : <span class="type">wpe_view_backend_exportable_fdo*</span> (C handle)
+      <span class="fn">m_web_view</span>   : <span class="type">WebKitWebView*</span> (GObject)
+    <span class="fn">m_viewport</span> : <span class="type">WebViewViewport</span> (POD)
+  <span class="fn">m_ui</span>        : <span class="type">BrowserUi</span>     (value)
+  <span class="fn">m_input</span>     : <span class="type">InputTranslator</span> (value)
+    <span class="fn">m_xkb</span>      : <span class="type">XkbLayout</span>     (value, holds opaque XKB pointers)
+</pre></div>
+
+<h3>Inheritance</h3>
+<p>Both renderers use <strong>multiple inheritance</strong>: they implement <code>Renderer</code> (for Application) and <code>FrameSink</code> (for WebPage):</p>
+<div class="diagram"><pre>
+Renderer (abstract)          FrameSink (abstract)
+    |                            |
+    +-- GlRenderer <span class="cmt">(also: FrameSink)</span>
+    +-- VulkanRenderer <span class="cmt">(also: FrameSink)</span>
+</pre></div>
+<p>The renderer's <code>frame_sink()</code> method returns <code>*this</code>, so the same object is used for both rendering and frame reception.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="build">
+<h2>3. Building</h2>
+
+<h3>Prerequisites</h3>
+<table>
+  <tr><th>Dependency</th><th>Version</th><th>Notes</th></tr>
+  <tr><td>CMake</td><td>&ge; 3.21</td><td>apt: 3.28.3 &mdash; cmake 4.x does NOT work</td></tr>
+  <tr><td>WPE WebKit</td><td>&ge; 1.14</td><td>pkg-config <code>wpe-webkit-2.0</code> (preferred) or <code>-1.1</code> / <code>-1.0</code></td></tr>
+  <tr><td>libwpe</td><td>&ge; 1.14</td><td>pkg-config <code>wpe-1.0</code></td></tr>
+  <tr><td>WPEBackend-fdo</td><td>&ge; 1.14</td><td>pkg-config <code>wpebackend-fdo-1.0</code></td></tr>
+  <tr><td>SDL3</td><td>&ge; 3.0</td><td>Fetched from source if not installed</td></tr>
+  <tr><td>EGL + GLESv2</td><td>&mdash;</td><td>GL ES backend only</td></tr>
+  <tr><td>Vulkan SDK</td><td>&mdash;</td><td>Vulkan backend only</td></tr>
+  <tr><td>GLib 2.0</td><td>&ge; 2.70</td><td>WPE dependency</td></tr>
+  <tr><td>xkbcommon</td><td>&ge; 0.4</td><td>Keyboard layout handling</td></tr>
+  <tr><td>wayland-server</td><td>&mdash;</td><td>WPE frame export path</td></tr>
+</table>
+
+<h3>Native Build (x86)</h3>
+<pre><code>cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel 1</code></pre>
+<p><strong>Always use <code>--parallel 1</code></strong> on the development machine (W540, 8 GB RAM). Parallel builds will OOM.</p>
+
+<h3>Cross-compile for STM32MP2</h3>
+<pre><code>source layers/openembedded-core/oe-init-build-env build-openstlinuxweston-stm32mp25-mx-watermelon-wine-1a
+bitbake imwebbrowser</code></pre>
+<p>The Yocto recipe handles the toolchain, sysroot, and all dependencies. See <a href="#cross-compile">Section 14</a>.</p>
+
+<h3>CMake Options</h3>
+<table>
+  <tr><th>Option</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>IMWEBBROWSER_BACKEND_OPENGL_ES</code></td><td>ON</td><td>OpenGL ES 3.1 backend</td></tr>
+  <tr><td><code>IMWEBBROWSER_BACKEND_VULKAN</code></td><td>OFF</td><td>Vulkan backend (overrides GL if both set)</td></tr>
+  <tr><td><code>IMWEBBROWSER_STARTUP_URL</code></td><td>raspberrypi.com</td><td>Initial URL</td></tr>
+  <tr><td><code>IMWEBBROWSER_WINDOW_WIDTH</code></td><td>1280</td><td>Initial window width</td></tr>
+  <tr><td><code>IMWEBBROWSER_WINDOW_HEIGHT</code></td><td>800</td><td>Initial window height</td></tr>
+  <tr><td><code>IMWEBBROWSER_WINDOW_FULLSCREEN</code></td><td>OFF</td><td>Start fullscreen</td></tr>
+  <tr><td><code>IMWEBBROWSER_USER_AGENT</code></td><td>(empty)</td><td>Custom user agent string</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_JAVASCRIPT</code></td><td>ON</td><td>Enable JS</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_WEBGL</code></td><td>ON</td><td>Enable WebGL</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_WEBRTC</code></td><td>OFF</td><td>Enable WebRTC</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_MEDIA</code></td><td>ON</td><td>Enable HTML5 audio/video</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_MEDIA_STREAM</code></td><td>OFF</td><td>Enable getUserMedia</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_WEB_AUDIO</code></td><td>OFF</td><td>Enable Web Audio API</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_FULLSCREEN</code></td><td>ON</td><td>Fullscreen API</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_DEVELOPER_EXTRAS</code></td><td>OFF</td><td>Web Inspector</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_SMOOTH_SCROLLING</code></td><td>ON</td><td>Pixel-precise scroll</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_ENCRYPTED_MEDIA</code></td><td>ON</td><td>DRM (EME)</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_PAGE_CACHE</code></td><td>ON</td><td>Back/forward cache</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_DNS_PREFETCHING</code></td><td>OFF</td><td>DNS prefetch</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_SPATIAL_NAVIGATION</code></td><td>OFF</td><td>Arrow key navigation</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_CARET_BROWSING</code></td><td>OFF</td><td>Caret browsing</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_TABS_TO_LINKS</code></td><td>ON</td><td>Tab focuses links</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_SITE_SPECIFIC_QUIRKS</code></td><td>ON</td><td>Per-site compat quirks</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_OFFLINE_APP_CACHE</code></td><td>OFF</td><td>Legacy app cache</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_HTML5_DATABASE</code></td><td>ON</td><td>SQL databases</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_HYPERLINK_AUDITING</code></td><td>OFF</td><td>Link ping</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_RESIZABLE_TEXT_AREAS</code></td><td>ON</td><td>Resizable textareas</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_MOCK_CAPTURE_DEVICES</code></td><td>OFF</td><td>Mock capture</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_CONSOLE_TO_STDOUT</code></td><td>OFF</td><td>Console &rarr; stdout</td></tr>
+  <tr><td><code>IMWEBBROWSER_ENABLE_ACCELERATED_2D_CANVAS</code></td><td>ON</td><td>HW 2D canvas</td></tr>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="cli">
+<h2>4. CLI Reference</h2>
+<pre><code>imwebbrowser [options]
+
+  <span class="fn">-u, --url=&lt;url&gt;</span>          URL to open on startup
+  <span class="fn">    --width=&lt;px&gt;</span>         Initial window width
+  <span class="fn">    --height=&lt;px&gt;</span>        Initial window height
+  <span class="fn">    --fullscreen</span>         Start fullscreen
+  <span class="fn">    --user-agent=&lt;str&gt;</span>   Custom user agent
+  <span class="fn">    --no-javascript</span>      Disable JavaScript
+  <span class="fn">    --no-webgl</span>           Disable WebGL
+  <span class="fn">    --no-webrtc</span>          Disable WebRTC
+  <span class="fn">    --no-media</span>           Disable audio/video
+  <span class="fn">    --no-media-stream</span>    Disable getUserMedia
+  <span class="fn">    --no-web-audio</span>       Disable Web Audio
+  <span class="fn">    --no-fullscreen-api</span>  Disable Fullscreen API
+  <span class="fn">    --developer-extras</span>   Enable Web Inspector
+  <span class="fn">    --no-smooth-scrolling</span> Discrete wheel scrolling
+  <span class="fn">    --log-level=&lt;lvl&gt;</span>    trace | debug | info | warn | error
+  <span class="fn">-h, --help</span>               Show help</code></pre>
+<p><strong>File:</strong> <code>src/config/config.cpp:60</code> &mdash; <code>Config::from_command_line()</code></p>
+<p><strong>File:</strong> <code>src/main.cpp:19</code> &mdash; <code>print_help()</code></p>
+
+<h3>Keyboard Shortcuts</h3>
+<table>
+  <tr><th>Key</th><th>Action</th><th>File:Line</th></tr>
+  <tr><td><code>Ctrl+L</code></td><td>Focus address bar</td><td>application.cpp:166</td></tr>
+  <tr><td><code>Ctrl+R</code> / <code>F5</code></td><td>Reload page</td><td>application.cpp:168-171</td></tr>
+  <tr><td><code>Alt+Left</code></td><td>Go back</td><td>application.cpp:172</td></tr>
+  <tr><td><code>Alt+Right</code></td><td>Go forward</td><td>application.cpp:174</td></tr>
+  <tr><td><code>F11</code></td><td>Toggle kiosk mode</td><td>application.cpp:176</td></tr>
+  <tr><td><code>Escape</code></td><td>Exit kiosk mode</td><td>application.cpp:179</td></tr>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="source-map">
+<h2>5. Source Map</h2>
+
+<h3>Entry Point</h3>
+<div class="file-entry">
+  <h4>src/main.cpp <span class="lines">64 lines</span></h4>
+  <p>Parses CLI via <code>Config::from_command_line()</code>, sets log level, creates <code>Application</code> and calls <code>run()</code>. Contains <code>print_help()</code> with all CLI flags.</p>
+  <p><strong>Key:</strong> <code>main()</code> at line 49</p>
+</div>
+
+<h3>Application Layer</h3>
+<div class="file-entry">
+  <h4>src/application/application.h <span class="lines">56 lines</span></h4>
+  <p>Owns all major subsystems: Window, Renderer*, Browser, BrowserUi, InputTranslator. Declares the frame loop and event handling.</p>
+</div>
+<div class="file-entry">
+  <h4>src/application/application.cpp <span class="lines">317 lines</span></h4>
+  <p><strong>Central orchestrator.</strong> Key functions:</p>
+  <ul style="margin:8px 0 0 20px;font-size:0.9em;color:var(--text-dim);">
+    <li><code>initialize()</code> :92 &mdash; SDL init, window, ImGui, renderer factory, browser init, loads URL</li>
+    <li><code>run()</code> :259 &mdash; Main frame loop (SDL poll &rarr; ImGui &rarr; WPE pump &rarr; UI &rarr; present)</li>
+    <li><code>handle_event()</code> :214 &mdash; SDL event dispatch (quit, resize, focus)</li>
+    <li><code>handle_shortcuts()</code> :158 &mdash; Ctrl+L, Ctrl+R, F5, Alt+arrows, F11, Esc</li>
+    <li><code>propagate_xkb_layout()</code> :45 &mdash; Parses <code>setxkbmap -query</code> to set <code>XKB_DEFAULT_*</code> env vars</li>
+    <li><code>enter_kiosk()</code> :186 / <code>exit_kiosk()</code> :196 / <code>toggle_kiosk()</code> :206</li>
+  </ul>
+</div>
+
+<h3>Configuration</h3>
+<div class="file-entry">
+  <h4>src/config/config.h <span class="lines">61 lines</span></h4>
+  <p>Config struct with 25+ boolean feature flags for WebKit, plus window/platform settings.</p>
+</div>
+<div class="file-entry">
+  <h4>src/config/config.cpp <span class="lines">197 lines</span></h4>
+  <p><code>Config::defaults()</code> :13 reads compile-time defaults from generated <code>config_defaults.h</code>. <code>Config::from_command_line()</code> :60 parses ~30 CLI flags. <code>Config::print_summary()</code> :166 logs all settings.</p>
+</div>
+<div class="file-entry">
+  <h4>cmake/config_defaults.h.in <span class="lines">40 lines</span></h4>
+  <p>CMake template. Generates <code>config_defaults.h</code> with <code>#define</code> / <code>#cmakedefine01</code> for every feature. Processed by <code>configure_file()</code> at build time.</p>
+  <p><strong>Do NOT delete this file.</strong> It is required by the build.</p>
+</div>
+
+<h3>Logging</h3>
+<div class="file-entry">
+  <h4>src/logging/log.h + log.cpp <span class="lines">100 lines</span></h4>
+  <p>Leveled logger (Trace/Debug/Info/Warn/Error). Thread-safe via <code>std::atomic</code> + <code>std::mutex</code>. Output format: <code>[HH:MM:SS] LEVEL file:line: message</code>. Macros: <code>LOG_TRACE</code>, <code>LOG_DEBUG</code>, <code>LOG_INFO</code>, <code>LOG_WARN</code>, <code>LOG_ERROR</code>.</p>
+</div>
+
+<h3>Platform</h3>
+<div class="file-entry">
+  <h4>src/platform/window.h + window.cpp <span class="lines">138 lines</span></h4>
+  <p>SDL3 window wrapper. Sets <code>SDL_HINT_VIDEO_FORCE_EGL</code> (critical for WPE EGL sharing). Provides <code>drawable_size()</code> (pixel dims), <code>content_scale()</code> (DPI factor), <code>set_fullscreen()</code> (borderless).</p>
+</div>
+
+<h3>Input</h3>
+<div class="file-entry">
+  <h4>src/input/input_translator.h + input_translator.cpp <span class="lines">314 lines</span></h4>
+  <p>SDL3 events &rarr; WPE view backend events. Handles keyboard, mouse motion, mouse buttons, scroll wheel. Converts logical coordinates to device-pixel coordinates. Integrates XkbLayout for dead key compose sequences.</p>
+</div>
+<div class="file-entry">
+  <h4>src/input/keymap.h + keymap.cpp <span class="lines">178 lines</span></h4>
+  <p>SDL scancode &rarr; Linux evdev keycode mapping (512-entry table). Applies +8 offset for XKB keycodes.</p>
+</div>
+<div class="file-entry">
+  <h4>src/input/xkb_layout.h + xkb_layout.cpp <span class="lines">251 lines</span></h4>
+  <p>XKB keyboard layout handling. Overrides libwpe's hardcoded "us" layout. Reads RMLVO from <code>XKB_DEFAULT_*</code> env vars or <code>setxkbmap -query</code>. Full dead key compose support (Swedish, etc.).</p>
+</div>
+
+<h3>Rendering</h3>
+<div class="file-entry">
+  <h4>src/rendering/renderer.h <span class="lines">44 lines</span></h4>
+  <p>Abstract <code>Renderer</code> base class: <code>initialize()</code>, <code>shutdown()</code>, <code>begin_frame()</code>, <code>render_present()</code>, <code>on_resize()</code>, <code>wait_idle()</code>, <code>egl_display_for_wpe()</code>, <code>frame_sink()</code>.</p>
+</div>
+<div class="file-entry">
+  <h4>src/rendering/webview_frame.h <span class="lines">68 lines</span></h4>
+  <p>Frame descriptors (<code>EglFrame</code>, <code>DmaBufFrame</code>, <code>ShmFrame</code>) and <code>FrameSink</code> interface: <code>wants_egl_image()</code>, <code>wants_dmabuf()</code>, <code>on_egl_image()</code>, <code>on_dmabuf()</code>, <code>on_shm()</code>.</p>
+</div>
+<div class="file-entry">
+  <h4>src/rendering/egl_helpers.h + egl_helpers.cpp <span class="lines">105 lines</span></h4>
+  <p>EGL utility: runtime extension resolution (<code>eglCreateImageKHR</code>, etc.), headless display creation via <code>EGL_PLATFORM_SURFACELESS_MESA</code> for the Vulkan backend.</p>
+</div>
+<div class="file-entry">
+  <h4>src/rendering/opengles/gl_renderer.h + gl_renderer.cpp <span class="lines">431 lines</span></h4>
+  <p><strong>OpenGL ES 3.1 renderer</strong> (default). Inherits both <code>Renderer</code> and <code>FrameSink</code>. Wants EGL images. Frame path: bind EGL image &rarr; scratch texture &rarr; <code>glBlitFramebuffer</code> to owned texture &rarr; ImGui::Image. Async via <code>glFenceSync</code>. Also handles SHM fallback (BGRA &rarr; RGBA byte-swap).</p>
+</div>
+<div class="file-entry">
+  <h4>src/rendering/vulkan/vulkan_renderer.h + vulkan_renderer.cpp <span class="lines">586 lines</span></h4>
+  <p><strong>Vulkan renderer</strong> (optional). Inherits both <code>Renderer</code> and <code>FrameSink</code>. Wants dmabufs. Creates headless EGL display for WPE, Vulkan instance + device, swapchain. Dmabufs imported into VkImages via <code>VK_EXT_external_memory_dma_buf</code>. Renders via ImGui Vulkan backend.</p>
+</div>
+<div class="file-entry">
+  <h4>src/rendering/vulkan/webview_import.h + webview_import.cpp <span class="lines">396 lines</span></h4>
+  <p>3-slot ring buffer for dmabuf &rarr; VkImage import. Per-slot binary semaphore tracks when the GPU is done drawing. <code>import()</code>: wait slot &rarr; create VkImage with <code>VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT</code> &rarr; import fd &rarr; create VkImageView. Tries OPTIMAL tiling first (AFBC on GC7000), falls back to LINEAR.</p>
+</div>
+
+<h3>WebKit</h3>
+<div class="file-entry">
+  <h4>src/webkit/wpe_module.h + wpe_module.cpp <span class="lines">107 lines</span></h4>
+  <p>WPE initialization + GLib main loop integration. Sets env vars: <code>MESA_LOADER_DRIVER_OVERRIDE=i965</code> (x86 only), <code>WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1</code>, <code>WPE_BACKEND_LIBRARY=libWPEBackend-fdo-1.0.so</code>. Calls <code>wpe_fdo_initialize_for_egl_display()</code>. <code>pump_main_context()</code> drains GLib main context non-blocking.</p>
+</div>
+<div class="file-entry">
+  <h4>src/webkit/web_page.h + web_page.cpp <span class="lines">490 lines</span></h4>
+  <p><strong>Core WPE integration.</strong> Creates FDO exportable (EGL or dmabuf), WebKitWebView, connects signals. Contains frame export callbacks (<code>on_export_egl_image</code>, <code>on_export_dmabuf_resource</code>, <code>on_export_shm_buffer</code>), load tracking, permission granting, crash recovery, cookie consent auto-dismiss script injection.</p>
+</div>
+<div class="file-entry">
+  <h4>src/webkit/web_settings.h + web_settings.cpp <span class="lines">75 lines</span></h4>
+  <p>Maps <code>Config</code> booleans to <code>webkit_settings_set_enable_*()</code> calls. Handles <code>WEBKIT_CHECK_VERSION(2,45,3)</code> for <code>enable_2d_canvas_acceleration</code>.</p>
+</div>
+
+<h3>Browser</h3>
+<div class="file-entry">
+  <h4>src/browser/browser.h + browser.cpp <span class="lines">94 lines</span></h4>
+  <p>Composition of WpeModule + WebPage + WebViewViewport. <code>set_viewport()</code> converts logical to physical pixels and resizes the web page.</p>
+</div>
+<div class="file-entry">
+  <h4>src/browser/web_view_viewport.h <span class="lines">23 lines</span></h4>
+  <p>POD struct: <code>x</code>, <code>y</code>, <code>width</code>, <code>height</code>, <code>scale</code>. Represents the web view's position/size in logical coordinates.</p>
+</div>
+
+<h3>UI</h3>
+<div class="file-entry">
+  <h4>src/ui/browser_ui.h + browser_ui.cpp <span class="lines">222 lines</span></h4>
+  <p>ImGui toolbar (Back/Fwd/Reload/Kiosk + address bar) + web view quad via <code>ImGui::GetBackgroundDrawList()->AddImage()</code>. Reports <code>WebViewViewport</code> back to the browser each frame. <code>complete_url()</code> :21 auto-prepends <code>https://</code> for bare domains.</p>
+</div>
+
+<h3>Libraries (vendored, untouched)</h3>
+<div class="file-entry">
+  <h4>src/libraries/imgui/ <span class="lines">Dear ImGui</span></h4>
+  <p>Vendored Dear ImGui with SDL3, OpenGL3, and Vulkan backends. <strong>Do not modify.</strong></p>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="frame-loop">
+<h2>6. Frame Loop</h2>
+<p><strong>File:</strong> <code>src/application/application.cpp:259</code> &mdash; <code>Application::run()</code></p>
+<div class="diagram"><pre>
+<span class="kw">while</span> (m_running) {
+    <span class="cmt">// 1. SDL events</span>
+    <span class="kw">while</span> (<span class="fn">SDL_PollEvent</span>(&event)) {
+        <span class="fn">ImGui_ImplSDL3_ProcessEvent</span>(&event);  <span class="cmt">// feed ImGui</span>
+        <span class="fn">handle_event</span>(event);                  <span class="cmt">// shortcuts + input</span>
+    }
+
+    <span class="cmt">// 2. Begin ImGui frame (makes GL context current)</span>
+    m_renderer-><span class="fn">begin_frame</span>();
+
+    <span class="cmt">// 3. Pump WPE/GLib main loop (new frames arrive via callbacks)</span>
+    m_browser.wpe().<span class="fn">pump_main_context</span>();
+
+    <span class="cmt">// 4. Build web view texture handle</span>
+    texture.handle = m_renderer-><span class="fn">webview_texture</span>();
+    texture.valid = m_renderer-><span class="fn">frame_ready</span>();
+
+    <span class="cmt">// 5. Draw UI (toolbar + web view quad, reports viewport to WPE)</span>
+    m_ui.<span class="fn">draw</span>(m_browser, texture);
+
+    <span class="cmt">// 6. Update coordinate mapping for the reported viewport</span>
+    m_input.<span class="fn">set_view_geometry</span>(viewport.x, viewport.y, ...);
+
+    <span class="cmt">// 7. Render ImGui draw data + swap/present</span>
+    m_renderer-><span class="fn">render_present</span>();
+}
+</pre></div>
+<p>When minimized, the loop sleeps 16ms per frame to avoid spinning (<code>application.cpp:310</code>).</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="renderers">
+<h2>7. Renderers</h2>
+
+<h3>OpenGL ES 3.1 (Default)</h3>
+<p><strong>Files:</strong> <code>src/rendering/opengles/gl_renderer.cpp</code></p>
+<p><strong>FrameSink:</strong> <code>wants_egl_image() = true</code>, <code>wants_dmabuf() = false</code></p>
+<p><strong>GPU compat:</strong> GLES 3.1 (VeriSilicon GC7000 compatible). Uses <code>glBlitFramebuffer</code> instead of <code>glCopyImageSubData</code> (which requires ES 3.2).</p>
+
+<details>
+<summary>Frame Processing Pipeline (on_egl_image)</summary>
+<p><strong>File:</strong> <code>gl_renderer.cpp:216</code></p>
+<ol style="margin:8px 0 0 20px;font-size:0.9em;">
+  <li>Wait for previous frame's <code>glFenceSync</code> (non-blocking, line 226)</li>
+  <li>Bind EGL image to scratch texture via <code>glEGLImageTargetTexture2DOES</code> (line 233)</li>
+  <li>Query internal format, ensure owned texture matches (line 244)</li>
+  <li>GPU-only blit: <code>glBlitFramebuffer</code> scratch &rarr; owned texture (line 257)</li>
+  <li>Place fence for next frame (<code>glFenceSync</code>, line 268) &mdash; returns to WPE immediately</li>
+  <li>Release EGL image back to WPE + signal frame complete (<code>web_page.cpp:235-238</code>)</li>
+</ol>
+</details>
+
+<details>
+<summary>SHM Fallback (on_shm)</summary>
+<p><strong>File:</strong> <code>gl_renderer.cpp:287</code></p>
+<p>When GPU renderer isn't available, WPE falls back to shared memory. Pixels are copied from BGRA to RGBA byte order and uploaded row-by-row via <code>glTexSubImage2D</code>. The first SHM frame is dumped to <code>/tmp/opencode/shmdump.bgra</code> for debugging.</p>
+</details>
+
+<h3>Vulkan</h3>
+<p><strong>Files:</strong> <code>src/rendering/vulkan/vulkan_renderer.cpp</code>, <code>webview_import.cpp</code></p>
+<p><strong>FrameSink:</strong> <code>wants_egl_image() = false</code>, <code>wants_dmabuf() = true</code></p>
+<p><strong>Device extensions:</strong> <code>VK_KHR_swapchain</code>, <code>VK_EXT_external_memory_dma_buf</code></p>
+
+<details>
+<summary>Vulkan Initialization</summary>
+<p><strong>File:</strong> <code>vulkan_renderer.cpp:206</code></p>
+<ol style="margin:8px 0 0 20px;font-size:0.9em;">
+  <li>Create headless EGL display for WPE via <code>egl_helpers_create_headless_display()</code></li>
+  <li>Create VkInstance with SDL-required extensions</li>
+  <li>Select physical device + queue family</li>
+  <li>Create VkDevice with swapchain + dmabuf extensions</li>
+  <li>Create VkSurface from SDL window</li>
+  <li>Create descriptor pool, initialize <code>WebViewImporter</code></li>
+  <li>Create web view sampler (linear filtering, clamp-to-edge)</li>
+  <li>Initialize ImGui Vulkan backend, create first swapchain</li>
+</ol>
+</details>
+
+<details>
+<summary>Dmabuf Import (WebViewImporter)</summary>
+<p><strong>File:</strong> <code>webview_import.cpp:237</code></p>
+<p>3-slot ring buffer. Each slot holds: VkImage + VkDeviceMemory + VkImageView + VkSemaphore.</p>
+<ol style="margin:8px 0 0 20px;font-size:0.9em;">
+  <li><code>wait_slot()</code>: wait for slot's previous GPU work via binary semaphore (line 99)</li>
+  <li><code>create_slot()</code>: destroy old resources, create VkImage with <code>VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT</code> (line 147)</li>
+  <li>Try OPTIMAL tiling first (AFBC on VeriSilicon), fall back to LINEAR (line 173)</li>
+  <li>Import dmabuf fd via <code>VkImportMemoryFdInfoKHR</code> (line 191)</li>
+  <li>Create VkImageView (line 217)</li>
+  <li>Set <code>signal_pending = true</code> so next submit signals the slot's semaphore</li>
+</ol>
+</details>
+</section>
+
+<!-- ============================================================ -->
+<section id="frame-pipeline">
+<h2>8. Frame Pipeline</h2>
+
+<h3>EGL Image Path (GL ES backend)</h3>
+<div class="diagram"><pre>
+WPE compositor
+    |
+    v
+<span class="type">on_export_egl_image()</span>          <span class="cmt">web_page.cpp:223</span>
+    |  Constructs EglFrame
+    v
+<span class="type">GlRenderer::on_egl_image()</span>     <span class="cmt">gl_renderer.cpp:216</span>
+    |  bind &rarr; blit &rarr; fence
+    v
+Release image + frame complete   <span class="cmt">web_page.cpp:235-238</span>
+</pre></div>
+
+<h3>Dmabuf Path (Vulkan backend)</h3>
+<div class="diagram"><pre>
+WPE compositor
+    |
+    v
+<span class="type">on_export_dmabuf_resource()</span>     <span class="cmt">web_page.cpp:241</span>
+    |  Constructs DmaBufFrame
+    v
+<span class="type">VulkanRenderer::on_dmabuf()</span>    <span class="cmt">vulkan_renderer.cpp:342</span>
+    |
+    v
+<span class="type">WebViewImporter::import()</span>      <span class="cmt">webview_import.cpp:237</span>
+    |  wait slot &rarr; create VkImage &rarr; import fd &rarr; create view
+    v
+Release buffer + frame complete  <span class="cmt">web_page.cpp:264-266</span>
+</pre></div>
+
+<h3>Frame Pacing</h3>
+<p>After each exported frame, the host must call <code>wpe_view_backend_exportable_fdo_dispatch_frame_complete()</code> (or the EGL/SHM variant) to unblock WPE from rendering the next frame. Without this, WPE blocks after the first frame.</p>
+<p>In the GL backend, <code>glFenceSync</code> allows returning to WPE immediately while the GPU copy is in-flight.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="input">
+<h2>9. Input Handling</h2>
+
+<h3>Keyboard Pipeline</h3>
+<p><strong>File:</strong> <code>src/input/input_translator.cpp:80</code> &mdash; <code>dispatch_keyboard()</code></p>
+<div class="diagram"><pre>
+SDL3 scancode
+    |  <span class="fn">keymap_evdev_from_scancode()</span>      <span class="cmt">keymap.cpp:147</span>
+    v
+Linux evdev keycode (+8 = XKB keycode)
+    |  <span class="fn">m_xkb.keysym_for_keycode()</span>       <span class="cmt">xkb_layout.cpp:145</span>
+    v
+XKB keysym (layout-aware, with dead key compose)
+    |
+    v
+<span class="fn">wpe_view_backend_dispatch_keyboard_event()</span>
+</pre></div>
+
+<details>
+<summary>Dead Key Compose</summary>
+<p><strong>File:</strong> <code>src/input/xkb_layout.cpp:167</code></p>
+<p>The XkbLayout manages a <code>xkb_compose_state</code> for dead key sequences (Swedish: &auml;, &ouml;, &aring;, etc.). When a key produces a keysym in the COMPOSING state, it is buffered. The next key completes the compose: COMPOSED &rarr; emit composed character; CANCELLED &rarr; emit dead key's own character + the current key.</p>
+<p>The locale is read from the <code>LANG</code> environment variable (required, <code>xkb_compose_table_new_from_locale()</code> crashes with NULL).</p>
+</details>
+
+<h3>Mouse Pipeline</h3>
+<p><strong>File:</strong> <code>src/input/input_translator.cpp:124</code></p>
+<p>Motion: logical window coords &rarr; device-pixel coords relative to web view viewport (line 124-143). Buttons: SDL button IDs &rarr; WPE convention (Left=1, Right=3, Middle=2, X1=4, X2=5). Events outside the web view rectangle are silently dropped.</p>
+
+<h3>Scroll</h3>
+<p><strong>File:</strong> <code>src/input/input_translator.cpp:185</code></p>
+<p>Smooth scrolling (default): <code>wheel_y * 40.0</code> pixel units. Discrete: line units. Configurable via <code>--no-smooth-scrolling</code>.</p>
+
+<h3>Not Implemented</h3>
+<p><strong>Touch input</strong> (no <code>SDL_EVENT_FINGER_*</code> processing) and <strong>gamepad/controller</strong> input are not supported.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="webkit">
+<h2>10. WPE WebKit Integration</h2>
+
+<h3>WPE Initialization</h3>
+<p><strong>File:</strong> <code>src/webkit/wpe_module.cpp:14</code></p>
+<table>
+  <tr><th>Env Variable</th><th>Value</th><th>Purpose</th></tr>
+  <tr><td><code>MESA_LOADER_DRIVER_OVERRIDE</code></td><td><code>i965</code></td><td>Force native DRI on Intel (x86 only)</td></tr>
+  <tr><td><code>WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS</code></td><td><code>1</code></td><td>Allow /dev/dri access in WebProcess</td></tr>
+  <tr><td><code>WPE_BACKEND_LIBRARY</code></td><td><code>libWPEBackend-fdo-1.0.so</code></td><td>Select FDO backend</td></tr>
+</table>
+<p>Then calls <code>wpe_fdo_initialize_for_egl_display()</code> to bind the FDO backend to the renderer's EGL display.</p>
+
+<h3>WebPage Creation</h3>
+<p><strong>File:</strong> <code>src/webkit/web_page.cpp:32</code></p>
+<ol style="margin:8px 0 0 20px;font-size:0.9em;">
+  <li>Create FDO exportable based on sink capabilities (EGL or dmabuf, lines 39-64)</li>
+  <li>Get view backend from exportable (line 71)</li>
+  <li>Create <code>WebKitWebViewBackend</code> + <code>WebKitWebView</code> (lines 73-75)</li>
+  <li>Apply WebKitSettings (line 81)</li>
+  <li>Connect signals: load-changed, progress, permission, process-terminated, create (lines 86-92)</li>
+  <li>Inject cookie consent auto-dismiss script (lines 96-114)</li>
+</ol>
+
+<h3>Cookie Consent Script</h3>
+<p><strong>File:</strong> <code>src/webkit/web_page.cpp:97-107</code></p>
+<p>Injected at document end. After 1.5 seconds, finds buttons matching "Reject all", "Accept all", "acceptera alla", "avvisa alla", "I agree", "agree" and clicks the first match.</p>
+
+<h3>GLib Main Loop</h3>
+<p><strong>File:</strong> <code>src/webkit/wpe_module.cpp:57</code></p>
+<p><code>pump_main_context()</code> calls <code>g_main_context_iteration(nullptr, false)</code> in a loop until no more iterations are pending. This is where WPE dispatches frame export callbacks, IPC, and internal compositor simulation.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="ui">
+<h2>11. UI / ImGui</h2>
+<p><strong>File:</strong> <code>src/ui/browser_ui.cpp</code></p>
+
+<h3>WebViewTexture</h3>
+<p>Backend-neutral texture handle (<code>browser_ui.h:20</code>): <code>handle</code> is a <code>uint64_t</code> that holds either a <code>GLuint</code> texture ID (GL ES) or a <code>VkDescriptorSet</code> (Vulkan).</p>
+
+<h3>draw()</h3>
+<p><strong>File:</strong> <code>browser_ui.cpp:48</code></p>
+<ol style="margin:8px 0 0 20px;font-size:0.9em;">
+  <li>Calculate toolbar height (0 in kiosk mode, line 53)</li>
+  <li>Draw toolbar via <code>draw_toolbar()</code> (line 58)</li>
+  <li>Draw web view as full-viewport quad via <code>ImGui::GetBackgroundDrawList()->AddImage()</code> (line 67) &mdash; behind all UI windows</li>
+  <li>Show "Loading..." when no frame ready (line 72)</li>
+  <li>Report <code>WebViewViewport</code> to browser (line 77)</li>
+</ol>
+
+<h3>URL Completion</h3>
+<p><strong>File:</strong> <code>browser_ui.cpp:21</code></p>
+<p>Trims whitespace. If the URL has no <code>://</code> scheme, checks if it contains a <code>.</code> (looks like a domain) and prepends <code>https://</code>.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="config">
+<h2>12. Configuration</h2>
+
+<h3>Settings Flow</h3>
+<div class="diagram"><pre>
+CMakeLists.txt options
+    &darr; <span class="cmt">configure_file()</span>
+cmake/config_defaults.h.in
+    &darr; <span class="cmt">#define / #cmakedefine01</span>
+build/config_defaults.h        <span class="cmt">(generated)</span>
+    &darr; <span class="cmt">Config::defaults()</span>
+src/config/config.cpp
+    &darr; <span class="cmt">Config::from_command_line()</span>
+Runtime overrides (CLI flags)
+    &darr; <span class="cmt">web_settings_create()</span>
+WebKitSettings                 <span class="cmt">(applied to WebKitWebView)</span>
+</pre></div>
+
+<p>Every <code>IMWEBBROWSER_ENABLE_*</code> CMake option maps to an <code>IMWEBBROWSER_DEFAULT_*</code> variable (CMakeLists.txt lines 73-95), which becomes a <code>#define</code> in the generated header. <code>Config::defaults()</code> reads these defines. CLI flags override the defaults at runtime.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="security">
+<h2>13. Security</h2>
+
+<h3>Sandbox</h3>
+<p><strong>Disabled unconditionally</strong> at runtime (<code>wpe_module.cpp:34</code>): <code>WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1</code>. This allows the WebProcess to access <code>/dev/dri</code> directly for GPU rendering. Without this, Mesa falls back to Vulkan/Zink inside the sandbox on Intel.</p>
+
+<h3>Permissions</h3>
+<p>All permission requests (camera, microphone) are granted unconditionally (<code>web_page.cpp:351</code>).</p>
+
+<h3>Window Creation</h3>
+<p>All <code>window.open()</code> requests are rejected (<code>web_page.cpp:377</code>) &mdash; no new windows/tabs.</p>
+
+<h3>Crash Recovery</h3>
+<p>Web process crashes trigger an automatic page reload (<code>web_page.cpp:365</code>).</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="cross-compile">
+<h2>14. Cross-compilation (STM32MP2)</h2>
+
+<h3>Target</h3>
+<table>
+  <tr><td>SoC</td><td>STM32MP257F</td></tr>
+  <tr><td>CPU</td><td>Dual Cortex-A35 @ 1.5 GHz</td></tr>
+  <tr><td>GPU</td><td>VeriSilicon GC7000 (GL ES 3.1, Vulkan 1.3)</td></tr>
+  <tr><td>HW Decoder</td><td>H264/VP8 up to 1080p60</td></tr>
+  <tr><td>BSP</td><td>Watermelon Wine 1A (Scarthgap / Yocto 5.0)</td></tr>
+</table>
+
+<h3>Build via BitBake</h3>
+<pre><code><span class="cmt"># Set up environment</span>
+source layers/openembedded-core/oe-init-build-env \
+    build-openstlinuxweston-stm32mp25-mx-watermelon-wine-1a
+
+<span class="cmt"># Build ImWebBrowser (pulls in all dependencies)</span>
+bitbake imwebbrowser
+
+<span class="cmt"># Clean + rebuild WPE WebKit</span>
+bitbake wpewebkit -c cleansstate && bitbake imwebbrowser</code></pre>
+
+<h3>Key Recipes</h3>
+<table>
+  <tr><th>Recipe</th><th>Path</th></tr>
+  <tr><td><code>wpewebkit_2.53.90.bb</code></td><td>meta-watermelon-wine/recipes-browser/wpewebkit/</td></tr>
+  <tr><td><code>imwebbrowser.inc</code></td><td>meta-watermelon-wine/recipes-browser/imwebbrowser/</td></tr>
+  <tr><td>libwpe_1.14.2.bb</td><td>OE-core (read-only)</td></tr>
+  <tr><td>wpebackend-fdo_1.14.2.bb</td><td>OE-core (read-only)</td></tr>
+</table>
+
+<h3>WPE WebKit Build Fixes</h3>
+<table>
+  <tr><th>Issue</th><th>Fix</th></tr>
+  <tr><td>GCC 13 <code>_Atomic</code> in C++ mode</td><td><code>do_configure:prepend()</code> sed-replaces <code>&lt;stdatomic.h&gt;</code> with <code>&lt;atomic&gt;</code> + using declarations</td></tr>
+  <tr><td><code>glib-compile-resources</code> missing</td><td><code>glib-2.0-native</code> in DEPENDS</td></tr>
+  <tr><td><code>gstreamer-mpegts-1.0</code> missing</td><td><code>gstreamer1.0-plugins-bad</code> in DEPENDS</td></tr>
+  <tr><td><code>sysprof-capture-4</code> missing</td><td><code>-DUSE_SYSTEM_SYSPROF_CAPTURE=OFF</code></td></tr>
+  <tr><td>OOM during link</td><td>8-16 GB swap required</td></tr>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="call-graph">
+<h2>15. Call Graph</h2>
+
+<h3>Initialization Sequence</h3>
+<p>What happens when you run <code>imwebbrowser</code>. Each arrow shows a function call. Numbers are source file:line references.</p>
+<div class="diagram"><pre>
+<span class="fn">main()</span>                                           <span class="cmt">main.cpp:49</span>
+  |
+  +--&gt; <span class="fn">Config::from_command_line()</span>               <span class="cmt">config.cpp:60</span>
+  |      +--&gt; <span class="fn">Config::defaults()</span>               <span class="cmt">config.cpp:13</span>
+  |
+  +--&gt; <span class="fn">log_set_level()</span>                          <span class="cmt">log.cpp:22</span>
+  |
+  +--&gt; <span class="fn">Application::run()</span>                      <span class="cmt">application.cpp:259</span>
+         |
+         +--&gt; <span class="fn">initialize()</span>                     <span class="cmt">application.cpp:92</span>
+         |      |
+         |      +--&gt; <span class="fn">propagate_xkb_layout()</span>   <span class="cmt">application.cpp:45</span>
+         |      |      +--&gt; <span class="fn">popen("setxkbmap -query")</span>
+         |      |
+         |      +--&gt; <span class="fn">SDL_Init()</span>                <span class="cmt">application.cpp:98</span>
+         |      |
+         |      +--&gt; <span class="fn">Window::initialize()</span>      <span class="cmt">window.cpp:9</span>
+         |      |      +--&gt; <span class="fn">SDL_CreateWindow()</span>
+         |      |
+         |      +--&gt; <span class="fn">ImGui::CreateContext()</span>    <span class="cmt">application.cpp:110</span>
+         |      |
+         |      +--&gt; <span class="fn">create_renderer()</span>         <span class="cmt">application.cpp:32</span>
+         |      |      +--&gt; <span class="kw">new</span> <span class="type">GlRenderer</span>  <span class="cmt">(or VulkanRenderer)</span>
+         |      |
+         |      +--&gt; <span class="fn">GlRenderer::initialize()</span>  <span class="cmt">gl_renderer.cpp:47</span>
+         |      |      +--&gt; <span class="fn">SDL_GL_CreateContext()</span>
+         |      |      +--&gt; <span class="fn">eglGetCurrentDisplay()</span>
+         |      |      +--&gt; <span class="fn">ImGui_ImplOpenGL3_Init()</span>
+         |      |      +--&gt; <span class="fn">ImGui_ImplSDL3_InitForOpenGL()</span>
+         |      |
+         |      +--&gt; <span class="fn">Browser::initialize()</span>     <span class="cmt">browser.cpp:11</span>
+         |      |      |
+         |      |      +--&gt; <span class="fn">WpeModule::initialize()</span>  <span class="cmt">wpe_module.cpp:14</span>
+         |      |      |      +--&gt; <span class="fn">setenv(MESA_LOADER_DRIVER_OVERRIDE)</span>
+         |      |      |      +--&gt; <span class="fn">setenv(WEBKIT_DISABLE_SANDBOX)</span>
+         |      |      |      +--&gt; <span class="fn">wpe_fdo_initialize_for_egl_display()</span>
+         |      |      |
+         |      |      +--&gt; <span class="fn">WebPage::create()</span>   <span class="cmt">web_page.cpp:32</span>
+         |      |             +--&gt; <span class="fn">wpe_view_backend_exportable_fdo_egl_create()</span>
+         |      |             +--&gt; <span class="fn">webkit_web_view_backend_new()</span>
+         |      |             +--&gt; <span class="fn">web_settings_create()</span>       <span class="cmt">web_settings.cpp:12</span>
+         |      |             +--&gt; <span class="fn">webkit_web_view_new()</span>
+         |      |             +--&gt; <span class="fn">g_signal_connect()</span> x5
+         |      |             +--&gt; <span class="fn">webkit_user_content_manager_add_script()</span>
+         |      |
+         |      +--&gt; <span class="fn">InputTranslator::initialize_xkb()</span>  <span class="cmt">input_translator.cpp:64</span>
+         |      |      +--&gt; <span class="fn">XkbLayout::initialize()</span>       <span class="cmt">xkb_layout.cpp:91</span>
+         |      |             +--&gt; <span class="fn">xkb_context_new()</span>
+         |      |             +--&gt; <span class="fn">xkb_keymap_new_from_names()</span>
+         |      |             +--&gt; <span class="fn">xkb_state_new()</span>
+         |      |             +--&gt; <span class="fn">xkb_compose_table_new_from_locale()</span>
+         |      |             +--&gt; <span class="fn">xkb_compose_state_new()</span>
+         |      |
+         |      +--&gt; <span class="fn">WebPage::load_uri()</span>      <span class="cmt">web_page.cpp:134</span>
+</pre></div>
+
+<h3>Per-Frame Call Chain</h3>
+<p>What happens every frame. The bold path is the hot path.</p>
+<div class="diagram"><pre>
+<span class="fn">Application::run()</span> loop                          <span class="cmt">application.cpp:264</span>
+  |
+  +--&gt; <span class="fn">SDL_PollEvent()</span>                           <span class="cmt">application.cpp:267</span>
+  |      +--&gt; <span class="fn">ImGui_ImplSDL3_ProcessEvent()</span>
+  |      +--&gt; <span class="fn">handle_event()</span>                    <span class="cmt">application.cpp:214</span>
+  |             +--&gt; <span class="fn">handle_shortcuts()</span>          <span class="cmt">application.cpp:158</span>
+  |             +--&gt; <span class="fn">InputTranslator::handle_event()</span>  <span class="cmt">input_translator.cpp:205</span>
+  |                    +--&gt; <span class="fn">dispatch_keyboard()</span>   <span class="cmt">input_translator.cpp:80</span>
+  |                    |      +--&gt; <span class="fn">keymap_evdev_from_scancode()</span>  <span class="cmt">keymap.cpp:147</span>
+  |                    |      +--&gt; <span class="fn">XkbLayout::keysym_for_keycode()</span>  <span class="cmt">xkb_layout.cpp:145</span>
+  |                    |      +--&gt; <span class="fn">wpe_view_backend_dispatch_keyboard_event()</span>
+  |                    +--&gt; <span class="fn">dispatch_pointer_motion()</span>  <span class="cmt">input_translator.cpp:124</span>
+  |                    +--&gt; <span class="fn">dispatch_pointer_button()</span>  <span class="cmt">input_translator.cpp:145</span>
+  |                    +--&gt; <span class="fn">dispatch_axis()</span>       <span class="cmt">input_translator.cpp:175</span>
+  |
+  +--&gt; <span class="fn">Renderer::begin_frame()</span>                   <span class="cmt">application.cpp:273</span>
+  |      +--&gt; <span class="fn">ImGui_ImplOpenGL3_NewFrame()</span>
+  |      +--&gt; <span class="fn">ImGui_ImplSDL3_NewFrame()</span>
+  |      +--&gt; <span class="fn">ImGui::NewFrame()</span>
+  |
+  +--&gt; <span class="fn">WpeModule::pump_main_context()</span>           <span class="cmt">application.cpp:276</span>
+  |      +--&gt; <span class="fn">g_main_context_iteration()</span>       <span class="cmt">wpe_module.cpp:60</span>
+  |             |
+  |             <span class="cmt">[WPE composites page into EGL image]</span>
+  |             |
+  |             +--&gt; <span class="fn">on_export_egl_image()</span>      <span class="cmt">web_page.cpp:223</span>
+  |                    +--&gt; <span class="fn">GlRenderer::on_egl_image()</span>  <span class="cmt">gl_renderer.cpp:216</span>
+  |                    |      +--&gt; <span class="fn">glClientWaitSync()</span>    <span class="cmt">:226</span>
+  |                    |      +--&gt; <span class="fn">glEGLImageTargetTexture2DOES()</span>  <span class="cmt">:233</span>
+  |                    |      +--&gt; <span class="fn">glBlitFramebuffer()</span>  <span class="cmt">:257</span>
+  |                    |      +--&gt; <span class="fn">glFenceSync()</span>        <span class="cmt">:268</span>
+  |                    |
+  |                    +--&gt; <span class="fn">wpe_view_backend_exportable_fdo_egl_dispatch_release_image()</span>
+  |                    +--&gt; <span class="fn">wpe_view_backend_exportable_fdo_dispatch_frame_complete()</span>
+  |
+  +--&gt; <span class="fn">BrowserUi::draw()</span>                         <span class="cmt">application.cpp:295</span>
+  |      +--&gt; <span class="fn">draw_toolbar()</span>                     <span class="cmt">browser_ui.cpp:86</span>
+  |      +--&gt; <span class="fn">ImGui::GetBackgroundDrawList()->AddImage()</span>  <span class="cmt">browser_ui.cpp:67</span>
+  |      +--&gt; <span class="fn">Browser::set_viewport()</span>            <span class="cmt">browser_ui.cpp:83</span>
+  |             +--&gt; <span class="fn">WebPage::resize()</span>            <span class="cmt">web_page.cpp:190</span>
+  |                    +--&gt; <span class="fn">wpe_view_backend_dispatch_set_size()</span>
+  |
+  +--&gt; <span class="fn">InputTranslator::set_view_geometry()</span>      <span class="cmt">application.cpp:301</span>
+  |
+  +--&gt; <span class="fn">Renderer::render_present()</span>                <span class="cmt">application.cpp:307</span>
+         +--&gt; <span class="fn">ImGui::Render()</span>
+         +--&gt; <span class="fn">ImGui_ImplOpenGL3_RenderDrawData()</span>
+         +--&gt; <span class="fn">SDL_GL_SwapWindow()</span>
+</pre></div>
+
+<h3>Shutdown Sequence</h3>
+<div class="diagram"><pre>
+<span class="fn">Application::shutdown()</span>                          <span class="cmt">application.cpp:140</span>
+  |
+  +--&gt; <span class="fn">Browser::shutdown()</span>                      <span class="cmt">browser.cpp:17</span>
+  |      +--&gt; <span class="fn">WebPage::destroy()</span>                <span class="cmt">web_page.cpp:120</span>
+  |             +--&gt; <span class="fn">g_object_unref(m_web_view)</span>
+  |             +--&gt; <span class="fn">wpe_view_backend_exportable_fdo_destroy()</span>
+  |      +--&gt; <span class="fn">WpeModule::shutdown()</span>             <span class="cmt">wpe_module.cpp:52</span>
+  |
+  +--&gt; <span class="fn">GlRenderer::shutdown()</span>                   <span class="cmt">gl_renderer.cpp:119</span>
+  |      +--&gt; <span class="fn">glDeleteSync()</span>
+  |      +--&gt; <span class="fn">glDeleteFramebuffers()</span> x2
+  |      +--&gt; <span class="fn">glDeleteTextures()</span> x2
+  |      +--&gt; <span class="fn">ImGui_ImplOpenGL3_Shutdown()</span>
+  |      +--&gt; <span class="fn">SDL_GL_DestroyContext()</span>
+  |      +--&gt; <span class="kw">delete</span> renderer
+  |
+  +--&gt; <span class="fn">ImGui::DestroyContext()</span>
+  +--&gt; <span class="fn">Window::shutdown()</span>
+  +--&gt; <span class="fn">SDL_Quit()</span>
+</pre></div>
+</section>
+
+<!-- ============================================================ -->
+<section id="ui-mockup">
+<h2>16. UI Mockup</h2>
+<p>The browser window layout. The toolbar is an ImGui menu bar; the web view is drawn behind all UI windows.</p>
+
+<h3>Normal Mode</h3>
+<div style="border:2px solid var(--border);border-radius:8px;overflow:hidden;margin:16px 0;background:var(--surface);max-width:640px;">
+  <!-- Title bar -->
+  <div style="background:#21262d;padding:6px 12px;font-size:0.8em;color:var(--text-dim);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+    <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f85149;"></span>
+    <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#d29922;"></span>
+    <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#3fb950;"></span>
+    <span style="margin-left:16px;">ImWebBrowser - YouTube</span>
+  </div>
+  <!-- Toolbar -->
+  <div style="background:#161b22;padding:6px 12px;border-bottom:1px solid var(--border);font-size:0.85em;display:flex;align-items:center;gap:12px;">
+    <span style="color:var(--text-dim);cursor:default;">Back</span>
+    <span style="color:var(--text-dim);cursor:default;">Fwd</span>
+    <span style="color:var(--text-dim);cursor:default;">Reload</span>
+    <span style="color:var(--text-dim);cursor:default;">Kiosk</span>
+    <span style="color:var(--border);">|</span>
+    <div style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:0.9em;color:var(--text);">https://www.youtube.com</div>
+    <span style="color:var(--text-dim);font-size:0.85em;">100%</span>
+  </div>
+  <!-- Web view -->
+  <div style="background:#1a1a2e;padding:40px;text-align:center;color:var(--text-dim);min-height:280px;display:flex;align-items:center;justify-content:center;">
+    <div>
+      <div style="font-size:1.5em;margin-bottom:8px;">Web View</div>
+      <div style="font-size:0.85em;color:var(--text-dim);">
+        <code style="color:var(--green);">AddImage()</code> on background draw list<br>
+        <span style="color:var(--yellow);">Fills entire viewport below toolbar</span>
+      </div>
+    </div>
+  </div>
+  <!-- Labels -->
+  <div style="padding:8px 12px;font-size:0.75em;color:var(--text-dim);border-top:1px solid var(--border);background:#161b22;">
+    <code>browser_ui.cpp:53</code> toolbar_height = ImGui::GetFrameHeight() + 4.0f<br>
+    <code>browser_ui.cpp:80</code> viewport = {0, toolbar_h, display_w, display_h - toolbar_h}
+  </div>
+</div>
+
+<h3>Kiosk Mode</h3>
+<div style="border:2px solid var(--border);border-radius:8px;overflow:hidden;margin:16px 0;background:var(--surface);max-width:640px;">
+  <div style="background:#1a1a2e;padding:60px;text-align:center;color:var(--text-dim);min-height:300px;display:flex;align-items:center;justify-content:center;">
+    <div>
+      <div style="font-size:1.5em;margin-bottom:8px;">Web View (full window)</div>
+      <div style="font-size:0.85em;color:var(--text-dim);">
+        <code style="color:var(--green);">toolbar_height = 0</code><br>
+        <span style="color:var(--yellow);">No toolbar, no address bar, no menus</span><br>
+        <span style="color:var(--orange);">F11 to toggle, Escape to exit</span>
+      </div>
+    </div>
+  </div>
+  <div style="padding:8px 12px;font-size:0.75em;color:var(--text-dim);border-top:1px solid var(--border);background:#161b22;">
+    <code>browser_ui.cpp:53</code> toolbar_height = m_kiosk ? 0.0f : (ImGui::GetFrameHeight() + 4.0f)
+  </div>
+</div>
+
+<h3>Coordinate System</h3>
+<div class="diagram"><pre>
+  (0,0) +----------------------------------------------+
+        |  OS Title Bar  (SDL3 manages)                |
+  ------+----------------------------------------------+
+  (0,T) |  ImGui Toolbar (MainMenuBar)                 |
+        |  [Back] [Fwd] [Reload] [Kiosk] | URL | 100% |
+  ------+----------------------------------------------+
+        |                                              |
+        |  Web View (ImGui::GetBackgroundDrawList)     |
+        |  rendered via AddImage(ImTextureRef(handle)) |
+        |                                              |
+        |  handle = GLuint (GL ES)                     |
+        |        or VkDescriptorSet (Vulkan)           |
+        |                                              |
+  ------+----------------------------------------------+
+  (0,H) |  Status (when minimized: 16ms sleep)        |
+  ------+----------------------------------------------+
+
+  T = ImGui::GetFrameHeight() + 4.0    <span class="cmt">browser_ui.cpp:53</span>
+  H = display_size.y                    <span class="cmt">browser_ui.cpp:55</span>
+
+  WebViewViewport {
+      x = 0,
+      y = T,           <span class="cmt">browser_ui.cpp:79</span>
+      width  = display_w,
+      height = H - T,
+      scale  = DisplayFramebufferScale.x
+  }                                 <span class="cmt">browser_ui.cpp:77-83</span>
+</pre></div>
+
+<h3>Address Bar URL Completion</h3>
+<table>
+  <tr><th>Input</th><th>Result</th><th>Why</th></tr>
+  <tr><td><code>google.com</code></td><td><code>https://google.com</code></td><td>Contains <code>.</code> &rarr; treated as domain</td></tr>
+  <tr><td><code>https://youtube.com</code></td><td><code>https://youtube.com</code></td><td>Already has <code>://</code> scheme</td></tr>
+  <tr><td><code>about:blank</code></td><td><code>about:blank</code></td><td>Starts with <code>about:</code> scheme</td></tr>
+  <tr><td><code>localhost:3000</code></td><td><code>https://localhost:3000</code></td><td>Contains <code>.</code> &rarr; domain</td></tr>
+  <tr><td><code>search term</code></td><td><code>search term</code></td><td>No <code>.</code> &rarr; passed as-is (no search engine)</td></tr>
+</table>
+<p><strong>File:</strong> <code>src/ui/browser_ui.cpp:21</code></p>
+</section>
+
+<!-- ============================================================ -->
+<section id="index">
+<h2>17. Function Index</h2>
+<p>Alphabetical index of all significant functions with file:line references.</p>
+
+<table>
+  <tr><th>Function</th><th>File:Line</th><th>Description</th></tr>
+  <tr><td><code>Application::handle_event()</code></td><td>application.cpp:214</td><td>SDL event dispatch</td></tr>
+  <tr><td><code>Application::handle_shortcuts()</code></td><td>application.cpp:158</td><td>Keyboard shortcuts</td></tr>
+  <tr><td><code>Application::initialize()</code></td><td>application.cpp:92</td><td>Full init sequence</td></tr>
+  <tr><td><code>Application::run()</code></td><td>application.cpp:259</td><td>Main frame loop</td></tr>
+  <tr><td><code>BrowserUi::complete_url()</code></td><td>browser_ui.cpp:21</td><td>URL completion</td></tr>
+  <tr><td><code>BrowserUi::draw()</code></td><td>browser_ui.cpp:48</td><td>Draw toolbar + web view</td></tr>
+  <tr><td><code>BrowserUi::draw_toolbar()</code></td><td>browser_ui.cpp:86</td><td>ImGui menu bar</td></tr>
+  <tr><td><code>Config::defaults()</code></td><td>config.cpp:13</td><td>Read compile-time defaults</td></tr>
+  <tr><td><code>Config::from_command_line()</code></td><td>config.cpp:60</td><td>Parse CLI flags</td></tr>
+  <tr><td><code>egl_helpers_create_headless_display()</code></td><td>egl_helpers.cpp:50</td><td>Surfaceless EGL for Vulkan</td></tr>
+  <tr><td><code>egl_helpers_init()</code></td><td>egl_helpers.cpp:22</td><td>Resolve EGL extensions</td></tr>
+  <tr><td><code>GlRenderer::on_egl_image()</code></td><td>gl_renderer.cpp:216</td><td>GL frame processing</td></tr>
+  <tr><td><code>GlRenderer::on_shm()</code></td><td>gl_renderer.cpp:287</td><td>SHM CPU fallback</td></tr>
+  <tr><td><code>GlRenderer::initialize()</code></td><td>gl_renderer.cpp:47</td><td>GL context + ImGui init</td></tr>
+  <tr><td><code>InputTranslator::dispatch_keyboard()</code></td><td>input_translator.cpp:80</td><td>SDL keyboard &rarr; WPE</td></tr>
+  <tr><td><code>InputTranslator::handle_event()</code></td><td>input_translator.cpp:205</td><td>SDL event dispatch</td></tr>
+  <tr><td><code>keymap_evdev_from_scancode()</code></td><td>keymap.cpp:147</td><td>SDL scancode &rarr; evdev</td></tr>
+  <tr><td><code>log_write()</code></td><td>log.cpp:41</td><td>Formatted log output</td></tr>
+  <tr><td><code>main()</code></td><td>main.cpp:49</td><td>Entry point</td></tr>
+  <tr><td><code>propagate_xkb_layout()</code></td><td>application.cpp:45</td><td>Parse setxkbmap for XKB env</td></tr>
+  <tr><td><code>VulkanRenderer::create_instance()</code></td><td>vulkan_renderer.cpp:26</td><td>VkInstance creation</td></tr>
+  <tr><td><code>VulkanRenderer::create_surface_and_device()</code></td><td>vulkan_renderer.cpp:57</td><td>VkDevice + surface</td></tr>
+  <tr><td><code>VulkanRenderer::frame_render()</code></td><td>vulkan_renderer.cpp:366</td><td>Vulkan render pass</td></tr>
+  <tr><td><code>VulkanRenderer::initialize()</code></td><td>vulkan_renderer.cpp:206</td><td>Full Vulkan init</td></tr>
+  <tr><td><code>VulkanRenderer::on_dmabuf()</code></td><td>vulkan_renderer.cpp:342</td><td>Vulkan frame processing</td></tr>
+  <tr><td><code>web_settings_create()</code></td><td>web_settings.cpp:12</td><td>WebKitSettings builder</td></tr>
+  <tr><td><code>WebViewImporter::create_slot()</code></td><td>webview_import.cpp:147</td><td>VkImage + dmabuf import</td></tr>
+  <tr><td><code>WebViewImporter::import()</code></td><td>webview_import.cpp:237</td><td>Ring buffer slot import</td></tr>
+  <tr><td><code>WebViewImporter::pick_memory_type()</code></td><td>webview_import.cpp:120</td><td>Select importable memory</td></tr>
+  <tr><td><code>WebViewImporter::take_signal_semaphore()</code></td><td>webview_import.cpp:283</td><td>Get slot semaphore for submit</td></tr>
+  <tr><td><code>WebPage::create()</code></td><td>web_page.cpp:32</td><td>WPE + WebKitWebView init</td></tr>
+  <tr><td><code>WebPage::on_export_dmabuf_resource()</code></td><td>web_page.cpp:241</td><td>Dmabuf export callback</td></tr>
+  <tr><td><code>WebPage::on_export_egl_image()</code></td><td>web_page.cpp:223</td><td>EGL image export callback</td></tr>
+  <tr><td><code>WebPage::on_export_shm_buffer()</code></td><td>web_page.cpp:276</td><td>SHM export callback</td></tr>
+  <tr><td><code>WebPage::on_permission_request()</code></td><td>web_page.cpp:351</td><td>Grant camera/mic</td></tr>
+  <tr><td><code>WebPage::on_web_process_terminated()</code></td><td>web_page.cpp:365</td><td>Auto-reload on crash</td></tr>
+  <tr><td><code>WebPage::resize()</code></td><td>web_page.cpp:190</td><td>Dispatch size to WPE</td></tr>
+  <tr><td><code>WpeModule::initialize()</code></td><td>wpe_module.cpp:14</td><td>WPE + EGL display init</td></tr>
+  <tr><td><code>WpeModule::pump_main_context()</code></td><td>wpe_module.cpp:57</td><td>Non-blocking GLib pump</td></tr>
+  <tr><td><code>XkbLayout::initialize()</code></td><td>xkb_layout.cpp:91</td><td>XKB + compose table init</td></tr>
+  <tr><td><code>XkbLayout::keysym_for_keycode()</code></td><td>xkb_layout.cpp:145</td><td>Keycode to keysym + compose</td></tr>
+</table>
+</section>
+
+<footer style="padding:40px 0;border-top:1px solid var(--border);margin-top:40px;color:var(--text-dim);font-size:0.85em;text-align:center;">
+  ImWebBrowser Documentation &bull; v1.0.0 &bull; Generated from source analysis
+</footer>
+
+</div>
+
+<script>
+// Search
+document.getElementById('search-box').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('section, .file-entry, table tr, details').forEach(el => {
+    if (!q || el.textContent.toLowerCase().includes(q)) {
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+  // Always show TOC and header
+  document.querySelector('.toc').style.display = '';
+  document.querySelector('header').style.display = '';
+});
+</script>
+</body>
+</html>
