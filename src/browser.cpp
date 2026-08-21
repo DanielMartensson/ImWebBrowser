@@ -218,6 +218,36 @@ void Browser::applySettings()
 #if ENABLE_WEBGL != 1
     webkit_settings_set_enable_webgl(s, ENABLE_WEBGL);
 #endif
+    // --- scrolling / caching -------------------------------------------------
+#if ENABLE_SMOOTH_SCROLLING != 1
+    webkit_settings_set_enable_smooth_scrolling(s, ENABLE_SMOOTH_SCROLLING);
+#endif
+#if ENABLE_PAGE_CACHE != 1
+    webkit_settings_set_enable_page_cache(s, ENABLE_PAGE_CACHE);
+#endif
+#if ENABLE_DNS_PREFETCH != 1
+    webkit_settings_set_enable_dns_prefetching(s, ENABLE_DNS_PREFETCH);
+#endif
+#if ENABLE_2D_CANVAS != 1
+    webkit_settings_set_enable_2d_canvas_acceleration(s, ENABLE_2D_CANVAS);
+#endif
+    // --- accessibility & input ----------------------------------------------
+#if ENABLE_CARET_BROWSING
+    webkit_settings_set_enable_caret_browsing(s, true);
+#endif
+#if ENABLE_SPATIAL_NAVIGATION
+    webkit_settings_set_enable_spatial_navigation(s, true);
+#endif
+#if ENABLE_TAB_FOCUS_CYCLE != 1
+    webkit_settings_set_enable_tab_key_cycles_through_elements(s, ENABLE_TAB_FOCUS_CYCLE);
+#endif
+#if ENABLE_TEXT_AREAS_RESIZE != 1
+    webkit_settings_set_enable_resizable_text_areas(s, ENABLE_TEXT_AREAS_RESIZE);
+#endif
+#if ENABLE_BF_GESTURES
+    webkit_settings_set_enable_back_forward_navigation_gestures(s, true);
+#endif
+    // --- media ----------------------------------------------------------------
 #if ENABLE_WEBRTC != 1
     webkit_settings_set_enable_webrtc(s, ENABLE_WEBRTC);
     webkit_settings_set_enable_media_stream(s, ENABLE_WEBRTC);
@@ -225,6 +255,11 @@ void Browser::applySettings()
 #if ENABLE_MEDIA != 1
     webkit_settings_set_enable_mediasource(s, ENABLE_MEDIA);
     webkit_settings_set_media_playback_allows_inline(s, ENABLE_MEDIA);
+#endif
+#if ENABLE_MEDIA_CAPABILITIES != 1
+    webkit_settings_set_enable_media_capabilities(s, ENABLE_MEDIA_CAPABILITIES);
+#endif
+#if ENABLE_AUTOPLAY
     webkit_settings_set_media_playback_requires_user_gesture(s, false);
 #endif
 #if ENABLE_AUDIO != 1

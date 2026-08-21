@@ -25,30 +25,57 @@ message(STATUS "libwpe     ${LIBWPE_VERSION}")
 message(STATUS "SDL3       ${SDL3_VERSION}")
 
 # ---------------------------------------------------------------------------
-# Feature options. Each option maps to a real WebKit setting or a verified
-# system dependency - nothing here is cosmetic.
+# Feature options — the full WPE WebKit capability matrix. Every option maps
+# to a real WebKitSettings property applied in browser.cpp applySettings()
+# (see https://wpewebkit.org/wpt-status/ for the conformance areas covered).
 #
-#   ENABLE_JAVASCRIPT        JavaScript execution (WebKitSettings:enable-javascript)
-#   ENABLE_WEBGL             WebGL rendering (WebKitSettings:enable-webgl)
-#   ENABLE_WEBRTC            WebRTC + getUserMedia (enable-webrtc / enable-media-stream)
-#   ENABLE_MEDIA             HTML5 media playback (MediaSource, inline playback;
-#                            requires GStreamer at runtime)
-#   ENABLE_AUDIO             WebAudio (WebKitSettings:enable-webaudio)
-#   ENABLE_ENCRYPTED_MEDIA   EME/DRM playback such as Netflix
-#                            (WebKitSettings:enable-encrypted-media; still needs
-#                            a DRM module on the system, e.g. Widevine)
-#   ENABLE_GSTREAMER         Verify the GStreamer stack needed for media codecs
-#   ENABLE_DEVELOPER_EXTRAS  WebKit Web Inspector (WebKitSettings:developer-extras)
+# Core engine
+#   ENABLE_JAVASCRIPT        JavaScript execution      (enable-javascript)
+#   ENABLE_WEBGL             WebGL rendering           (enable-webgl)
+#   ENABLE_SMOOTH_SCROLLING  Animated scrolling        (enable-smooth-scrolling)
+#   ENABLE_PAGE_CACHE        Back/forward page cache   (enable-page-cache)
+#   ENABLE_DNS_PREFETCH      DNS prefetching           (enable-dns-prefetching)
+#   ENABLE_2D_CANVAS accel   Accelerated <canvas> 2D   (enable-2d-canvas-acceleration)
+#
+# Accessibility & input
+#   ENABLE_CARET_BROWSING    Visible text caret        (enable-caret-browsing)
+#   ENABLE_SPATIAL_NAVIGATION Arrow-key link navigation (enable-spatial-navigation)
+#   ENABLE_TAB_FOCUS_CYCLE   Tab cycles through elements (enable-tab-key-cycles-through-elements)
+#   ENABLE_TEXT_AREAS_RESIZE Drag-resize <textarea>    (enable-resizable-text-areas)
+#   ENABLE_BF_GESTURES       Swipe back/forward gestures (enable-back-forward-navigation-gestures)
+#
+# Media
+#   ENABLE_MEDIA             HTML5 media playback      (enable-mediasource + inline playback)
+#   ENABLE_AUDIO             WebAudio                  (enable-webaudio)
+#   ENABLE_AUTOPLAY          Media autoplay w/o gesture (media-playback-requires-user-gesture=OFF)
+#   ENABLE_MEDIA_CAPABILITIES navigator.mediaCapabilities (enable-media-capabilities)
+#   ENABLE_ENCRYPTED_MEDIA   EME/DRM playback          (enable-encrypted-media; needs Widevine module)
+#   ENABLE_GSTREAMER         Verify GStreamer codec stack
+#
+# Misc
+#   ENABLE_WEBRTC            WebRTC + getUserMedia     (enable-webrtc + enable-media-stream)
+#   ENABLE_DEVELOPER_EXTRAS  WebKit Web Inspector      (developer-extras)
 #   ENABLE_BENCHMARK_HARNESS --bench-fish N automated WebGL Aquarium benchmark
 # ---------------------------------------------------------------------------
-option(ENABLE_JAVASCRIPT       "Enable JavaScript execution" ON)
-option(ENABLE_WEBGL            "Enable WebGL" ON)
-option(ENABLE_WEBRTC           "Enable WebRTC and getUserMedia" ON)
-option(ENABLE_MEDIA            "Enable HTML5 audio/video playback (GStreamer)" ON)
-option(ENABLE_AUDIO            "Enable WebAudio" ON)
-option(ENABLE_ENCRYPTED_MEDIA  "Enable Encrypted Media Extensions (DRM)" ON)
-option(ENABLE_GSTREAMER        "Require and verify the GStreamer media stack" ON)
-option(ENABLE_DEVELOPER_EXTRAS "Enable the WebKit Web Inspector" OFF)
+option(ENABLE_JAVASCRIPT        "Enable JavaScript execution" ON)
+option(ENABLE_WEBGL             "Enable WebGL" ON)
+option(ENABLE_SMOOTH_SCROLLING  "Enable smooth animated scrolling" ON)
+option(ENABLE_PAGE_CACHE        "Enable page cache for back/forward" ON)
+option(ENABLE_DNS_PREFETCH      "Enable DNS prefetching" ON)
+option(ENABLE_2D_CANVAS         "Enable accelerated 2D canvas" ON)
+option(ENABLE_CARET_BROWSING    "Enable caret browsing" OFF)
+option(ENABLE_SPATIAL_NAVIGATION "Enable spatial navigation" OFF)
+option(ENABLE_TAB_FOCUS_CYCLE   "Tab key cycles through focusable elements" ON)
+option(ENABLE_TEXT_AREAS_RESIZE "Allow resizing text areas" ON)
+option(ENABLE_BF_GESTURES       "Enable back/forward swipe gestures" OFF)
+option(ENABLE_WEBRTC            "Enable WebRTC and getUserMedia" ON)
+option(ENABLE_MEDIA             "Enable HTML5 audio/video playback (GStreamer)" ON)
+option(ENABLE_AUDIO             "Enable WebAudio" ON)
+option(ENABLE_AUTOPLAY          "Allow media autoplay without user gesture" OFF)
+option(ENABLE_MEDIA_CAPABILITIES "Enable mediaCapabilities API" ON)
+option(ENABLE_ENCRYPTED_MEDIA   "Enable Encrypted Media Extensions (DRM)" ON)
+option(ENABLE_GSTREAMER         "Require and verify the GStreamer media stack" ON)
+option(ENABLE_DEVELOPER_EXTRAS  "Enable the WebKit Web Inspector" OFF)
 option(ENABLE_BENCHMARK_HARNESS "Build the automated WebGL Aquarium benchmark harness" OFF)
 
 if(ENABLE_MEDIA AND NOT ENABLE_GSTREAMER)
@@ -64,6 +91,15 @@ if(ENABLE_GSTREAMER)
 endif()
 
 configure_file(src/config.h.in config.h @ONLY)
+
+# Configure-time capability report (mirrors the WPT feature areas).
+message(STATUS "")
+message(STATUS "ImWebBrowser ${PROJECT_VERSION} feature matrix:")
+message(STATUS "  core     : js=${ENABLE_JAVASCRIPT} webgl=${ENABLE_WEBGL} canvas2d=${ENABLE_2D_CANVAS} smooth=${ENABLE_SMOOTH_SCROLLING} pagecache=${ENABLE_PAGE_CACHE} dnsprefetch=${ENABLE_DNS_PREFETCH}")
+message(STATUS "  a11y     : caret=${ENABLE_CARET_BROWSING} spatial=${ENABLE_SPATIAL_NAVIGATION} tabcycle=${ENABLE_TAB_FOCUS_CYCLE} resize=${ENABLE_TEXT_AREAS_RESIZE} gestures=${ENABLE_BF_GESTURES}")
+message(STATUS "  media    : playback=${ENABLE_MEDIA} audio=${ENABLE_AUDIO} autoplay=${ENABLE_AUTOPLAY} mediacaps=${ENABLE_MEDIA_CAPABILITIES} eme=${ENABLE_ENCRYPTED_MEDIA} gstreamer=${ENABLE_GSTREAMER}")
+message(STATUS "  misc     : webrtc=${ENABLE_WEBRTC} devtools=${ENABLE_DEVELOPER_EXTRAS} bench=${ENABLE_BENCHMARK_HARNESS}")
+message(STATUS "")
 
 # ---------------------------------------------------------------------------
 # Dear ImGui (bundled in src/libraries/imgui) with SDL3 + OpenGL ES 3 backends.
