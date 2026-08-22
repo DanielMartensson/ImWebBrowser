@@ -21,8 +21,9 @@ Action drawToolbar(Browser& b, bool kiosk)
                                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar |
                                        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoNav |
                                        ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 4));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.f);  // softly rounded buttons + URL field
     ImGui::Begin("##toolbar", nullptr, flags);
 
     // Back / Forward / Reload
@@ -71,15 +72,21 @@ Action drawToolbar(Browser& b, bool kiosk)
     }
     b.urlEditing = ImGui::IsItemActive();
 
-    // Load progress 0-100%
-    char overlay[16];
-    snprintf(overlay, sizeof(overlay), "%3.0f%%", b.progress * 100.f);
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(kProgressWidth);
-    ImGui::ProgressBar(b.progress, ImVec2(kProgressWidth, 0), overlay);
+    // Load progress: just the number 0-100%, no bar, centered in the space
+    // left of the URL input.
+    {
+        char overlay[16];
+        snprintf(overlay, sizeof(overlay), "%3.0f%%", b.progress * 100.f);
+        ImGui::SameLine();
+        const float avail = ImGui::GetContentRegionAvail().x;
+        const float tw = ImGui::CalcTextSize(overlay).x;
+        if (avail > tw)
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail - tw) * 0.5f);
+        ImGui::TextUnformatted(overlay);
+    }
 
     ImGui::End();
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar(3);
     return action;
 }
 

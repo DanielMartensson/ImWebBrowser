@@ -28,7 +28,7 @@ public:
     bool urlEditing = false;         // user is typing in the URL bar
     bool focusUrlRequest = false;    // one-shot: focus the URL bar (Ctrl+L)
     std::string title;               // current page title
-    float progress = 0.f;            // estimated load progress 0..1
+    float progress = 1.f;            // estimated load progress 0..1 (100% = idle/done)
     bool loading = false;
     bool alive = true;               // set false when the browser should quit
 

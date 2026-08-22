@@ -7,7 +7,7 @@ class Browser;
 
 namespace ui {
 
-inline constexpr float kToolbarHeight = 34.f;  // logical pixels
+inline constexpr float kToolbarHeight = 25.f;  // logical pixels
 
 enum class Action { None, ToggleKiosk };
 

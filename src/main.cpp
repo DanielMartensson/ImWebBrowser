@@ -17,7 +17,7 @@
 namespace {
 
 struct Args {
-    const char* url = "about:blank";
+    const char* url = "https://duckduckgo.com";
     bool kiosk = false;
 #if ENABLE_BENCHMARK_HARNESS
     int benchFish = 0;
@@ -419,7 +419,8 @@ int main(int argc, char** argv)
         if (browser.title != lastTitle) {  // keep the OS window title current
             lastTitle = browser.title;
             char title[512];
-            snprintf(title, sizeof(title), "%s%s%s", lastTitle.c_str(), lastTitle.empty() ? "" : " - ", "ImWebBrowser");
+            snprintf(title, sizeof(title), "%s%s%s", "ImWebBrowser", lastTitle.empty() ? "" : " - ",
+                     lastTitle.c_str());
             SDL_SetWindowTitle(window, title);
         }
     }
