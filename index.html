@@ -1,306 +1,482 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ImWebBrowser — Interactive Documentation</title>
 <style>
-:root{--bg:#0b0f14;--panel:#121821;--line:#1f2a38;--txt:#dbe6f3;--dim:#8aa0b8;--acc:#4fd1c5;--acc2:#63b3ed;--warn:#f6ad55;--good:#68d391}
+:root{
+  --bg:#0b0f14; --bg2:#10161e; --card:#131b25; --line:#223042;
+  --txt:#dbe7f3; --dim:#8aa0b8; --acc:#39c5a3; --acc2:#5aa7ff;
+  --warn:#ffb454; --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--txt);font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-a{color:var(--acc2);text-decoration:none}a:hover{text-decoration:underline}
-.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
-header{position:relative;height:340px;overflow:hidden;border-bottom:1px solid var(--line)}
-#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
-.htext{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:center;pointer-events:none}
-h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;text-shadow:0 2px 18px rgba(0,0,0,.7)}
-h1 span{color:var(--acc)}
-.sub{color:var(--dim);max-width:640px;text-shadow:0 1px 8px rgba(0,0,0,.8)}
-nav{position:sticky;top:0;z-index:50;background:rgba(11,15,20,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:10px 24px}
-nav a{white-space:nowrap;color:var(--dim);padding:6px 12px;border-radius:8px;font-size:14px}
-nav a:hover{background:var(--panel);color:var(--txt);text-decoration:none}
-section{padding:56px 0;border-bottom:1px dashed var(--line)}
-h2{font-size:26px;margin-bottom:18px;color:var(--acc);display:flex;align-items:center;gap:10px}
-h2::before{content:"";width:10px;height:10px;background:var(--acc);border-radius:2px;transform:rotate(45deg);animation:pulse 2.4s infinite}
-@keyframes pulse{50%{opacity:.35}}
-h3{margin:22px 0 10px;color:var(--acc2)}
-p{margin:10px 0;color:var(--txt)}
-.dim{color:var(--dim)}
-code,kbd{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:.9em}
-kbd{font-family:ui-monospace,monospace;box-shadow:0 2px 0 var(--line)}
-pre{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;overflow-x:auto;font-size:.88em;line-height:1.5}
-.reveal{opacity:0;transform:translateY(24px);transition:all .7s cubic-bezier(.2,.7,.3,1)}
-.reveal.on{opacity:1;transform:none}
-/* fps bars */
-.bars{display:flex;flex-direction:column;gap:18px;margin-top:22px;max-width:720px}
-.bar-row{display:grid;grid-template-columns:170px 1fr 70px;align-items:center;gap:14px}
-.bar-track{height:26px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.bar-fill{height:100%;width:0;border-radius:7px;transition:width 1.6s cubic-bezier(.25,1,.3,1);position:relative}
-.bar-fill::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);animation:sheen 2.6s infinite}
-@keyframes sheen{0%{transform:translateX(-100%)}60%,100%{transform:translateX(200%)}}
-.f-num{font-weight:700;font-size:20px;text-align:right}
-/* tables */
-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:.93em}
-th{color:var(--dim);text-align:left;font-weight:600;padding:10px;border-bottom:1px solid var(--line)}
-td{padding:10px;border-bottom:1px solid rgba(31,42,56,.6);vertical-align:top}
-tr:hover td{background:rgba(79,209,197,.05)}
-.tipable{cursor:help;border-bottom:1px dotted var(--acc)}
-/* tooltip */
-#tip{position:fixed;z-index:99;max-width:380px;background:#182130;border:1px solid var(--acc);border-left-width:4px;border-radius:10px;padding:10px 13px;font-size:.86em;color:var(--txt);box-shadow:0 12px 32px rgba(0,0,0,.55);pointer-events:none;opacity:0;transition:opacity .12s}
-#tip b{color:var(--acc)}
-#tip.show{opacity:1}
-/* pipeline cards */
-.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:20px}
-.pcard{background:linear-gradient(160deg,var(--panel),#0e141d);border:1px solid var(--line);border-radius:14px;padding:16px;position:relative;transition:transform .25s,border-color .25s}
-.pcard:hover{transform:translateY(-6px);border-color:var(--acc)}
-.pcard h4{color:var(--acc2);margin-bottom:6px;font-size:15px}
-.pcard p{font-size:.85em;color:var(--dim);margin:0}
-.pcard::after{content:"→";position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:var(--acc);font-size:18px;animation:nudge 1.6s infinite}
-.pcard:last-child::after{display:none}
-@keyframes nudge{50%{transform:translate(4px,-50%)}}
-.badge{display:inline-block;font-size:.72em;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim);margin-left:6px}
-.badge.on{color:var(--good);border-color:rgba(104,211,145,.4)}
-.badge.off{color:var(--warn);border-color:rgba(246,173,85,.4)}
-footer{padding:40px 0;color:var(--dim);text-align:center;font-size:.9em}
-@media(max-width:640px){.bar-row{grid-template-columns:110px 1fr 54px}}
+body{
+  background:
+    radial-gradient(1200px 600px at 80% -10%, #12303a55, transparent),
+    radial-gradient(900px 500px at -10% 30%, #14324d55, transparent),
+    var(--bg);
+  color:var(--txt);
+  font:16px/1.65 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+a{color:var(--acc2);text-decoration:none} a:hover{text-decoration:underline}
+.wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+h1,h2,h3{line-height:1.15;letter-spacing:-.01em}
+h2{font-size:34px;margin:70px 0 8px;display:flex;align-items:center;gap:14px}
+h2 .n{color:var(--acc);font-family:var(--mono);font-size:18px;border:1px solid var(--line);
+      padding:3px 10px;border-radius:999px;background:var(--bg2)}
+.sub{color:var(--dim);max-width:760px;margin-bottom:26px}
+
+/* ---------- hero ---------- */
+header{padding:90px 0 40px;text-align:center}
+header h1{font-size:64px;font-weight:800;
+  background:linear-gradient(92deg,#eaf6ff 10%,var(--acc) 60%,var(--acc2));-webkit-background-clip:text;
+  background-clip:text;color:transparent;margin-bottom:10px}
+.tagline{color:var(--dim);font-size:20px;max-width:700px;margin:0 auto 26px}
+.badges{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;font-family:var(--mono);font-size:13px}
+.badge{border:1px solid var(--line);background:var(--bg2);border-radius:999px;padding:6px 14px;color:var(--txt)}
+.badge b{color:var(--acc)}
+.cta{margin-top:30px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{font-family:var(--mono);font-size:15px;padding:11px 22px;border-radius:10px;border:1px solid var(--line);
+     color:var(--txt);background:var(--card);transition:.18s}
+.btn:hover{transform:translateY(-2px);border-color:var(--acc)}
+.btn.primary{background:linear-gradient(92deg,#1d7f68,#256fae);border-color:transparent}
+
+/* ---------- 3D pipeline ---------- */
+.stage3d{perspective:1400px;height:480px;margin:36px 0;display:flex;align-items:center;justify-content:center;
+         border:1px solid var(--line);border-radius:18px;background:linear-gradient(#0d141c,#0b1119);overflow:hidden;cursor:grab}
+.stage3d:active{cursor:grabbing}
+.scene{position:relative;width:340px;height:340px;transform-style:preserve-3d;transition:transform .05s linear}
+.layer{position:absolute;inset:0;border-radius:14px;border:1px solid var(--line);
+       background:rgba(19,27,37,.88);backdrop-filter:blur(2px);
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+       box-shadow:0 0 0 rgba(57,197,163,0);transition:box-shadow .25s,border-color .25s}
+.layer:hover{border-color:var(--acc);box-shadow:0 0 42px rgba(57,197,163,.28), inset 0 0 30px rgba(57,197,163,.07)}
+.layer .ic{font-size:34px}
+.layer .t{font-weight:700;font-size:17px}
+.layer .m{font-family:var(--mono);font-size:11.5px;color:var(--dim);text-align:center;padding:0 16px}
+.flowline{position:absolute;left:50%;top:-40px;width:2px;height:420px;transform-origin:top;
+          background:linear-gradient(var(--acc),transparent);opacity:.5;pointer-events:none}
+@keyframes dash{to{background-position:0 400px}}
+.flowline{background:repeating-linear-gradient(to bottom,var(--acc) 0 6px,transparent 6px 14px);
+          animation:dash 3s linear infinite}
+.hint{position:absolute;bottom:14px;right:20px;color:var(--dim);font-size:13px;font-family:var(--mono)}
+
+/* ---------- tooltip ---------- */
+.tip{position:fixed;z-index:99;max-width:360px;background:#182230;border:1px solid var(--acc);
+     border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.55;color:var(--txt);
+     box-shadow:0 12px 32px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .12s}
+.tip.show{opacity:1}
+.tip .tt{color:var(--acc);font-family:var(--mono);font-size:12.5px;margin-bottom:5px}
+
+/* ---------- function cards ---------- */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.chip{font-family:var(--mono);font-size:13px;padding:7px 15px;border-radius:999px;border:1px solid var(--line);
+      background:var(--bg2);color:var(--dim);cursor:pointer;transition:.15s}
+.chip.on,.chip:hover{color:#fff;border-color:var(--acc);background:#17303a}
+#search{flex:1;min-width:220px;font:inherit;color:var(--txt);background:var(--bg2);border:1px solid var(--line);
+        border-radius:999px;padding:8px 18px;outline:none}
+#search:focus{border-color:var(--acc)}
+.group{margin-bottom:38px}
+.group>h3{font-size:21px;color:var(--acc);margin-bottom:6px;font-family:var(--mono)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+      cursor:help;transition:.18s;position:relative}
+.card:hover{transform:translateY(-3px);border-color:var(--acc2);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.card .sig{font-family:var(--mono);font-size:13.5px;color:#ffd9a0;word-break:break-word}
+.card .sig .rt{color:#7ee0c4}.card .sig .pn{color:#9fc6ff}
+.card p{color:var(--dim);font-size:14px;margin-top:7px}
+.card .tag{position:absolute;top:12px;right:14px;font-size:10.5px;font-family:var(--mono);
+           color:var(--warn);border:1px solid #5a4423;border-radius:6px;padding:1px 7px}
+
+/* ---------- tables ---------- */
+table{width:100%;border-collapse:collapse;margin:18px 0 8px;font-size:14.5px}
+th{font-family:var(--mono);font-size:12px;color:var(--acc);text-align:left;text-transform:uppercase;
+   letter-spacing:.08em;padding:9px 12px;border-bottom:1px solid var(--line)}
+td{padding:9px 12px;border-bottom:1px solid #17222f;vertical-align:top}
+tr:hover td{background:#101923}
+code,kbd{font-family:var(--mono);font-size:.92em;background:var(--bg2);border:1px solid var(--line);
+         border-radius:6px;padding:2px 7px;color:#ffd9a0}
+kbd{color:#7ee0c4}
+td code{white-space:nowrap}
+.opt{display:inline-block;font-family:var(--mono);font-size:12.5px;padding:2px 9px;border-radius:7px;
+     background:#152a36;color:#7ecdea;border:1px solid #1f3d50;margin:2px 3px 2px 0}
+.def{color:var(--acc)} .off{color:var(--warn)}
+
+pre{background:#0d141d;border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow:auto;
+    font:13.5px/1.6 var(--mono);color:#bcd3e8}
+pre b{color:var(--acc)} pre i{color:#69d29f;font-style:normal}
+
+/* ---------- perf ---------- */
+.perfwrap{display:flex;gap:26px;flex-wrap:wrap;align-items:center;background:var(--card);
+          border:1px solid var(--line);border-radius:16px;padding:26px}
+.perfwrap canvas{background:#0d141d;border:1px solid var(--line);border-radius:12px}
+.stat{min-width:150px}
+.stat .v{font-size:44px;font-weight:800;color:var(--acc);font-family:var(--mono)}
+.stat .l{color:var(--dim);font-size:13px}
+.stat .vs{color:var(--dim);font-size:13px;margin-top:14px}
+footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);color:var(--dim);
+       text-align:center;font-size:14px}
+@media(max-width:720px){header h1{font-size:42px} h2{font-size:26px}}
 </style>
 </head>
 <body>
-<div id="tip"></div>
 
 <header>
-<canvas id="gl"></canvas>
-<div class="htext wrap">
-<h1><span>&lt;/&gt;</span> ImWebBrowser</h1>
-<p class="sub">Zero-copy WPE WebKit embedding for SDL3 + Dear ImGui.<br>
-Drag the 3-D pipeline above · hover anything <span class="tipable">dotted</span> for tooltips.</p>
-</div>
+  <div class="wrap">
+    <h1>ImWebBrowser</h1>
+    <p class="tagline">A kiosk-grade web browser on SDL3&nbsp;+&nbsp;Dear&nbsp;ImGui&nbsp;+&nbsp;WPE&nbsp;WebKit,
+    rendering pages through a <b>zero-copy DMA-buf pipeline</b>. This is the living manual — hover anything.</p>
+    <div class="badges">
+      <span class="badge">engine <b>WPE WebKit ≥ 2.53.90</b></span>
+      <span class="badge">rendering <b>EGLImage · zero-copy</b></span>
+      <span class="badge">kiosk vsync cap <b>60 fps</b></span>
+      <span class="badge">idle CPU <b>≈ 5 %</b></span>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="#pipeline">Explore the pipeline</a>
+      <a class="btn" href="#api">Function reference</a>
+      <a class="btn" href="#build">Build &amp; flags</a>
+    </div>
+  </div>
 </header>
 
-<nav><div class="wrap">
-<a href="#overview">Overview</a><a href="#perf">Performance</a>
-<a href="#pipeline">Pipeline</a><a href="#api">API Reference</a>
-<a href="#features">CMake Features</a><a href="#keys">Keyboard</a>
-<a href="#env">Env Vars</a><a href="#build">Build & Run</a>
-</div></nav>
+<!-- ====================================================== 3D PIPELINE -->
+<section id="pipeline" class="wrap">
+  <h2><span class="n">01</span> The render pipeline, in 3-D</h2>
+  <p class="sub">Every frame travels bottom-to-top through five layers. <b>Drag the model to rotate it.</b>
+     Hover any layer to see what happens inside — including the two hard-won tricks
+     (<i>deferred buffer retirement</i>, <i>present-on-demand</i>) that make it both fast and correct.</p>
 
-<section id="overview"><div class="wrap reveal">
-<h2>Overview</h2>
-<p>ImWebBrowser embeds <b>WPE WebKit</b> into a raw <b>SDL3</b> window using
-<b>EGLStream-free DMA-buf export</b>: WebKit's compositor hands us each frame as an
-<span class="tipable" data-tip="<b>wpe_fdo_egl_exported_image</b>: a dmabuf-backed EGLImage exported by the FDO backend. We bind it directly as GL texture storage via glEGLImageTargetTexture2DOES — the GPU never copies pixels through the CPU.">EGLImage</span>,
-which becomes GL texture storage directly on the GPU.</p>
-<p>The GUI thread does exactly three things per frame: pump events, import the newest
-frame, present it. Everything else — layout, JS, rasterization — lives in WebKit's
-own processes (<span class="tipable" data-tip="WebKitWebProcess + ThreadedCompositor run out-of-process. The UI process only receives exported dmabuf fds.">WebProcess / compositor</span>).</p>
-<h3>Source map</h3>
-<table>
-<tr><th>File</th><th>Role</th></tr>
-<tr><td><code>src/main.cpp</code></td><td><span class="tipable" data-tip="Owns the SDL window + GLES3 context, runs the event loop, routes input by geometry, implements the kiosk fast path and benchmark harness.">Window · event loop · kiosk blit</span></td></tr>
-<tr><td><code>src/browser.cpp/.hpp</code></td><td><span class="tipable" data-tip="WPE WebKit view lifecycle, zero-copy frame import, wpe_input_* translation, navigation signals, press-heal logic.">WebKit embedding + input translation</span></td></tr>
-<tr><td><code>src/ui.cpp/.hpp</code></td><td><span class="tipable" data-tip="Dear ImGui toolbar: URL bar with search fallback, back/forward/reload, progress overlay, stats panel.">Toolbar UI</span></td></tr>
-</table>
-</div></section>
+  <div class="stage3d" id="stage">
+    <div class="scene" id="scene"></div>
+    <div class="hint">drag to rotate · scroll to zoom · hover layers for details</div>
+  </div>
+</section>
 
-<section id="perf"><div class="wrap reveal">
-<h2>Performance</h2>
-<p class="dim">WebGL Aquarium · 5000 fish · fullscreen 1920×1080 · Intel HD 4600 (Haswell)</p>
-<div class="bars">
-<div class="bar-row"><span>Cog (reference)</span><div class="bar-track"><div class="bar-fill" data-fps="43" style="background:linear-gradient(90deg,#ed8936,#f6ad55)"></div></div><div class="f-num">43 fps</div></div>
-<div class="bar-row"><span><b>ImWebBrowser</b></span><div class="bar-track"><div class="bar-fill" data-fps="60" style="background:linear-gradient(90deg,#38b2ac,#4fd1c5)"></div></div><div class="f-num"><span data-count="60">0</span> fps</div></div>
-</div>
-<p class="dim" style="margin-top:14px">Why faster: deferred buffer retirement gives WebKit a 3-deep queue instead of recycling the frame we're still scanning out, and present-on-demand removes idle work entirely.</p>
-</div></section>
+<!-- ====================================================== FUNCTION REF -->
+<section id="api" class="wrap">
+  <h2><span class="n">02</span> Function reference</h2>
+  <p class="sub">Every public entry point of the embedder, exactly as declared in
+     <code>src/browser.hpp</code>, <code>src/main.cpp</code> and <code>src/ui.cpp</code>.
+     Hover a card for the full story; use the filter to jump between subsystems.</p>
 
-<section id="pipeline"><div class="wrap reveal">
-<h2>Render pipeline</h2>
-<div class="pipe">
-<div class="pcard tipable" data-tip="<b>SDL3</b> delivers keyboard/mouse/window events. Buttons are routed by geometry (y ≥ toolbar) so a fast move-then-click is never swallowed by ImGui."><h4>SDL3 events</h4><p>input → geometry router</p></div>
-<div class="pcard tipable" data-tip="<b>browser.cpp</b> translates SDL to wpe_input_pointer_event / axis / keyboard. Buttons use plain integers 1=left,2=right,3=middle plus a held-button bitmask (1&lt;&lt;20…) in state."><h4>wpe_input_*</h4><p>translated events</p></div>
-<div class="pcard tipable" data-tip="WebKit's out-of-process compositor renders the page and exports each finished frame as a dmabuf-backed EGLImage through WPEBackend-fdo."><h4>WebKit render</h4><p>out-of-process compositor</p></div>
-<div class="pcard tipable" data-tip="onExportEglImage(): ack frame-complete immediately, keep the newest image, retire the previously displayed one only AFTER the next swap (retireImage_) so no buffer is rewritten mid-scanout."><h4>dmabuf → EGLImage</h4><p>zero-copy import</p></div>
-<div class="pcard tipable" data-tip="Kiosk path: attribute-less fullscreen triangle samples the texture with bilinear filtering — no ImGui, no clear, one draw call. Windowed path composites the texture under the ImGui toolbar."><h4>GL blit / ImGui</h4><p>present</p></div>
-<div class="pcard tipable" data-tip="SDL_GL_SwapWindow() then browser.afterPresent() releases the retired image — WebKit may reuse its storage from this point safely."><h4>Swap + retire</h4><p>afterPresent()</p></div>
-</div>
-</div></section>
+  <div class="filters">
+    <input id="search" type="text" placeholder="filter functions…  e.g. pointer, texture, kiosk">
+    <button class="chip on" data-f="all">All</button>
+    <button class="chip" data-f="lifecycle">Lifecycle</button>
+    <button class="chip" data-f="nav">Navigation</button>
+    <button class="chip" data-f="input">Input</button>
+    <button class="chip" data-f="frame">Frame pipeline</button>
+    <button class="chip" data-f="state">State &amp; signals</button>
+    <button class="chip" data-f="app">App / UI / bench</button>
+  </div>
 
-<section id="api"><div class="wrap reveal">
-<h2>API reference <span class="dim" style="font-size:.6em">— hover any function</span></h2>
-<h3>Browser (src/browser.hpp)</h3>
-<table>
-<tr><th>Signature</th><th>Purpose</th></tr>
-<tr><td class="tipable" data-tip="Boots libwpe, creates the FDO exportable + WebKitWebView, applies CMake feature settings, connects load/navigation signals. Call once after the EGL context exists."><code>bool init(EGLDisplay, int w, int h, const char* startUrl)</code></td><td>Create the web view and start loading.</td></tr>
-<tr><td class="tipable" data-tip="Tears down the WebView, backend and GL texture in safe order."><code>void shutdown()</code></td><td>Release all WebKit/GL resources.</td></tr>
-<tr><td class="tipable" data-tip="Resizes the view viewport in device pixels (excluding toolbar). Triggers WebKit relayout; stale frames during resize are dropped."><code>void resize(int w, int h)</code></td><td>Viewport geometry change.</td></tr>
-<tr><td class="tipable" data-tip="Runs pending GLib/WebKit main-loop events. Must be called every frame from the app thread — WebKit signals are dispatched here."><code>void pumpEvents()</code></td><td>Drain GLib event sources.</td></tr>
-<tr><td class="tipable" data-tip="Dispatches wpe_input_pointer_event type=motion with the current held-button bitmask. Coordinates are device pixels relative to the web view."><code>void pointerMotion(float x, float y)</code></td><td>Forward mouse movement.</td></tr>
-<tr><td class="tipable" data-tip="Dispatches button transitions: WPE expects plain numbers (1=left/2=right/3=middle/4=back/5=fwd) and state=bitmask of pressed buttons (1<<20 left…). Sending BTN_* codes or 0/1 makes WebKit silently drop ALL clicks!"><code>void pointerButton(float x, float y, uint8_t btn, bool pressed)</code></td><td>Forward press/release. <b>The famous bug fix.</b></td></tr>
-<tr><td class="tipable" data-tip="Translates SDL wheel deltas to wpe_input_axis_event (vertical axis 0), preserving pixel vs line scrolling mode."><code>void scroll(float x, float y, float dx, float dy)</code></td><td>Forward wheel scrolling.</td></tr>
-<tr><td class="tipable" data-tip="App key bindings are consumed first (F11/F3/Ctrl+L/Ctrl+R…); unconsumed keys go to WebKit with system XKB keysym resolution (Swedish layouts supported)."><code>void key(uint32_t scancode, uint16_t mods, bool pressed)</code></td><td>Key bindings + forwarding.</td></tr>
-<tr><td class="tipable" data-tip="Classifies input: explicit scheme → as-is; leading '/' → file://; has-dot-no-space or localhost → https://; otherwise DuckDuckGo search query."><code>void loadUrl(std::string url)</code></td><td>Smart navigation entry point.</td></tr>
-<tr><td class="tipable" data-tip="Thin wrappers over webkit_web_view_go_back/go_forward/reload(_bypass_cache) plus can_go_* queries used to enable/disable the toolbar buttons."><code>goBack() · goForward() · reload(bool) · canGoBack() · canGoForward()</code></td><td>History control.</td></tr>
-<tr><td class="tipable" data-tip="After the app honors a DOM fullscreen request, WebKit must be told so the page continues rendering fullscreen."><code>void notifyDomFullscreenDone(bool entered)</code></td><td>Ack DOM fullscreen.</td></tr>
-<tr><td class="tipable" data-tip="Binds the newest exported EGLImage as texture storage (zero-copy). Called inside the export callback when the GL context is current."><code>void updateWebTexture()</code></td><td>Import latest web frame.</td></tr>
-<tr><td class="tipable" data-tip="Releases retireImage_ — the previous displayed buffer — now that the swap completed and nothing samples it anymore. Keeps WebKit's buffer queue deep and corruption-free."><code>void afterPresent()</code></td><td>Post-swap buffer retirement.</td></tr>
-<tr><td class="tipable" data-tip="One-shot flag set by the frame-export path; the render loop consumes it to know a fresh web frame exists (present-on-demand)."><code>bool takeFrameBound()</code></td><td>New-frame signal for the loop.</td></tr>
-<tr><td class="tipable" data-tip="Press-heal: navigations can swallow a held button-up across the page swap, leaving WebKit stuck 'pressed' (clicks become drags). markPressHeal() arms on every load-changed; takePressHeal() consumes once before the next press sends a synthetic release first."><code>markPressHeal() · takePressHeal()</code></td><td>Stuck-click self-healing.</td></tr>
-<tr><td class="tipable" data-tip="Benchmark harness (ENABLE_BENCHMARK_HARNESS builds): loads the WebGL Aquarium and injects the fish count automatically, printing [bench] samples."><code>void startBenchmark(int fishCount)</code></td><td>Automated aquarium run.</td></tr>
-<tr><td class="tipable" data-tip="UI-facing live state: urlBuf[4096], urlEditing, focusUrlRequest, title, progress 0..1, loading, alive. Written by WebKit signals, read by the ImGui layer."><code>urlBuf · urlEditing · title · progress …</code></td><td>Shared UI state struct fields.</td></tr>
-</table>
-<h3>main.cpp loop</h3>
-<table>
-<tr><td class="tipable" data-tip="Minimal attribute-less fullscreen triangle: vertex shader generates positions from gl_VertexID, UV {0..2} covers offscreen corners, fragment samples the web texture once. One draw call, no buffers."><code>ensureBlitProgram() / blitProg</code></td><td>Kiosk direct-blit shader.</td></tr>
-<tr><td class="tipable" data-tip="Renders only when: fresh web frame bound, any input seen, stats overlay visible, or 150 ms heartbeat elapsed. Idle power drops to near zero."><code>present gate (newFrame ‖ hadEvents ‖ showStats ‖ due)</code></td><td>Present-on-demand scheduler.</td></tr>
-</table>
-</div></section>
+  <div id="cards"></div>
+</section>
 
-<section id="features"><div class="wrap reveal">
-<h2>CMake feature matrix</h2>
-<p class="dim">Every option maps to a real <code>webkit_settings_*</code> call — see <a href="https://wpewebkit.org/wpt-status/">WPT conformance areas</a>. Toggle with <code>-DENABLE_X=ON/OFF</code>.</p>
-<table>
-<tr><th>Area</th><th>Option</th><th>Default</th><th>Maps to</th></tr>
-<tr><td rowspan="6">Core</td>
-<td class="tipable" data-tip="JavaScript execution. Off = static pages only."><code>ENABLE_JAVASCRIPT</code></td><td><span class="badge on">ON</span></td><td><code>enable-javascript</code></td></tr>
-<tr><td class="tipable" data-tip="WebGL rendering — required for the aquarium benchmark."><code>ENABLE_WEBGL</code></td><td><span class="badge on">ON</span></td><td><code>enable-webgl</code></td></tr>
-<tr><td class="tipable" data-tip="Accelerated HTML5 canvas 2D context."><code>ENABLE_2D_CANVAS</code></td><td><span class="badge on">ON</span></td><td><code>enable-2d-canvas-acceleration</code></td></tr>
-<tr><td class="tipable" data-tip="Animated smooth scrolling."><code>ENABLE_SMOOTH_SCROLLING</code></td><td><span class="badge on">ON</span></td><td><code>enable-smooth-scrolling</code></td></tr>
-<tr><td class="tipable" data-tip="Keeps rendered pages alive for instant back/forward."><code>ENABLE_PAGE_CACHE</code></td><td><span class="badge on">ON</span></td><td><code>enable-page-cache</code></td></tr>
-<tr><td class="tipable" data-tip="Resolves domains before link clicks."><code>ENABLE_DNS_PREFETCH</code></td><td><span class="badge on">ON</span></td><td><code>enable-dns-prefetching</code></td></tr>
-<tr><td rowspan="5">A11y / input</td>
-<td class="tipable" data-tip="Visible text caret everywhere for keyboard-only operation."><code>ENABLE_CARET_BROWSING</code></td><td><span class="badge off">OFF</span></td><td><code>enable-caret-browsing</code></td></tr>
-<tr><td class="tipable" data-tip="Arrow-key navigation between links/focusables."><code>ENABLE_SPATIAL_NAVIGATION</code></td><td><span class="badge off">OFF</span></td><td><code>enable-spatial-navigation</code></td></tr>
-<tr><td class="tipable" data-tip="Tab cycles through all focusable elements."><code>ENABLE_TAB_FOCUS_CYCLE</code></td><td><span class="badge on">ON</span></td><td><code>enable-tab-key-cycles-through-elements</code></td></tr>
-<tr><td class="tipable" data-tip="Drag-resize corner on textarea elements."><code>ENABLE_TEXT_AREAS_RESIZE</code></td><td><span class="badge on">ON</span></td><td><code>enable-resizable-text-areas</code></td></tr>
-<tr><td class="tipable" data-tip="Touch-style swipe gestures for history navigation."><code>ENABLE_BF_GESTURES</code></td><td><span class="badge off">OFF</span></td><td><code>enable-back-forward-navigation-gestures</code></td></tr>
-<tr><td rowspan="6">Media</td>
-<td class="tipable" data-tip="HTML5 audio/video playback; requires GStreamer at runtime."><code>ENABLE_MEDIA</code></td><td><span class="badge on">ON</span></td><td><code>mediasource + inline playback</code></td></tr>
-<tr><td class="tipable" data-tip="WebAudio API."><code>ENABLE_AUDIO</code></td><td><span class="badge on">ON</span></td><td><code>enable-webaudio</code></td></tr>
-<tr><td class="tipable" data-tip="Allow media to start without a user gesture."><code>ENABLE_AUTOPLAY</code></td><td><span class="badge off">OFF</span></td><td><code>requires-user-gesture=false</code></td></tr>
-<tr><td class="tipable" data-tip="navigator.mediaCapabilities API."><code>ENABLE_MEDIA_CAPABILITIES</code></td><td><span class="badge on">ON</span></td><td><code>enable-media-capabilities</code></td></tr>
-<tr><td class="tipable" data-tip="Encrypted Media Extensions (Netflix etc.) — also needs a DRM module installed."><code>ENABLE_ENCRYPTED_MEDIA</code></td><td><span class="badge on">ON</span></td><td><code>enable-encrypted-media</code></td></tr>
-<tr><td class="tipable" data-tip="Verify GStreamer core/base (+ warn if bad plugins missing → HLS)."><code>ENABLE_GSTREAMER</code></td><td><span class="badge on">ON</span></td><td>pkg-config check</td></tr>
-<tr><td rowspan="2">Misc</td>
-<td class="tipable" data-tip="WebRTC peer connections and getUserMedia camera/mic."><code>ENABLE_WEBRTC</code></td><td><span class="badge on">ON</span></td><td><code>webrtc + media-stream</code></td></tr>
-<tr><td class="tipable" data-tip="WebKit Web Inspector via right-click → Inspect. Also build the --bench-fish harness switch here? No — that's ENABLE_BENCHMARK_HARNESS."><code>ENABLE_DEVELOPER_EXTRAS</code></td><td><span class="badge off">OFF</span></td><td><code>developer-extras</code></td></tr>
-<tr><td>Misc</td><td class="tipable" data-tip="Adds --bench-fish N: auto-loads the WebGL Aquarium and starts sampling FPS."><code>ENABLE_BENCHMARK_HARNESS</code></td><td><span class="badge on">ON</span></td><td>compile-time harness</td></tr>
-</table>
-</div></section>
+<!-- ====================================================== PERF -->
+<section id="perf" class="wrap">
+  <h2><span class="n">03</span> Present-on-demand, visualised</h2>
+  <p class="sub">The loop never renders without a reason. The chart replays a typical second:
+     web frames arrive from WebKit's compositor (green ticks) and are presented immediately
+     (blue line); between activity the loop naps instead of spinning.</p>
+  <div class="perfwrap">
+    <canvas id="chart" width="640" height="220"></canvas>
+    <div>
+      <div class="stat"><div class="v">60</div><div class="l">fps kiosk, vsync-capped<br>(5000-fish Aquarium @1080p)</div></div>
+      <div class="stat"><div class="vs">Cog reference launcher: ~43 fps.<br>
+        Idle static page: ≈ 5 % of one core,<br>main thread asleep in <code>poll()</code>.</div></div>
+    </div>
+  </div>
+</section>
 
-<section id="keys"><div class="wrap reveal">
-<h2>Keyboard shortcuts</h2>
-<table>
-<tr><th>Keys</th><th>Action</th></tr>
-<tr><td><kbd>Ctrl+L</kbd></td><td class="tipable" data-tip="Focuses the URL bar and selects existing text so typing replaces it (clear-on-focus).">Focus URL bar</td></tr>
-<tr><td><kbd>Enter</kbd> (URL bar)</td><td class="tipable" data-tip="Navigate. Plain text goes to DuckDuckGo, domains get https://, leading '/' opens file://.">Navigate / search</td></tr>
-<tr><td><kbd>Ctrl+R</kbd> / <kbd>Ctrl+Shift+R</kbd></td><td class="tipable" data-tip="Reload; Shift variant bypasses cache completely.">Reload</td></tr>
-<tr><td><kbd>Alt+←</kbd> / <kbd>Alt+→</kbd></td><td class="tipable" data-tip="History back/forward; buttons disable themselves when unavailable.">History</td></tr>
-<tr><td><kbd>F11</kbd></td><td class="tipable" data-tip="Toggles kiosk: hides toolbar, switches to the one-draw-call direct blit path. Works both directions at runtime.">Kiosk mode</td></tr>
-<tr><td><kbd>F3</kbd></td><td class="tipable" data-tip="Stats overlay: fps, presents/s, exports/s, frame source.">Stats overlay</td></tr>
-</table>
-</div></section>
+<!-- ====================================================== INPUT -->
+<section id="input" class="wrap">
+  <h2><span class="n">04</span> Input translation contract</h2>
+  <p class="sub">Two conventions cost us days to learn — they are documented here so nobody pays that again.
+     Hover the rows.</p>
+  <table>
+    <tr><th>Concept</th><th>Wrong (obvious but broken)</th><th>Right (what WPE expects)</th></tr>
+    <tr data-tip-tt="wpe_input_pointer_event::type / button" 
+        data-tip='Button identifiers are plain integers: 1 = left, 2 = right, 3 = middle, 4 = back, 5 = forward. Linux BTN_LEFT (0x110) keycodes are silently ignored by WPE.'>
+      <td>Button ids</td><td><code>BTN_LEFT = 0x110…</code></td><td><code>1 = left · 2 = right · 3 = middle</code></td></tr>
+    <tr data-tip-tt="wpe_input_pointer_event::state"
+        data-tip='state is a BITMASK of currently held buttons while dragging: (1&lt;&lt;20)=left, (1&lt;&lt;21)=right, (1&lt;&lt;22)=middle. Motion events must repeat the mask or WebKit ends the drag after one frame.'>
+      <td>Held-button state</td><td><code>0</code> or <code>1</code> flag</td><td><code>1&lt;&lt;20 L · 1&lt;&lt;21 R · 1&lt;&lt;22 M</code> bitmask</td></tr>
+    <tr data-tip-tt="markPressHeal() / takePressHeal()"
+        data-tip='If navigation starts between press and release, the release lands in the dying page. load-changed arms a heal flag; the next pointer press first sends a synthetic UP to the live page, then the real DOWN.'>
+      <td>Lost clicks on navigation</td><td>forward events blindly</td><td>synthetic UP before next DOWN (“press heal”)</td></tr>
+    <tr data-tip-tt="main.cpp geometry routing"
+        data-tip='Events are routed by window-space Y against ui::kToolbarHeight (25 logical px). ImGui gets toolbar-area events; the page gets everything at or below the line, offset by the toolbar height.'>
+      <td>Toolbar vs page split</td><td><code>io.WantCaptureMouse</code></td><td>geometry test <code>y ≥ toolbarPx</code></td></tr>
+  </table>
+</section>
 
-<section id="env"><div class="wrap reveal">
-<h2>Environment variables</h2>
-<table>
-<tr><th>Variable</th><th>Effect</th></tr>
-<tr><td class="tipable" data-tip="Verbose input tracing: every forwarded button/motion/key event with coordinates and timestamps, plus io-state once per second."><code>IMWB_DEBUG_INPUT</code></td><td>Input debug logging</td></tr>
-<tr><td class="tipable" data-tip="[stats] line once per second: fps, exports/s, presents/s. Works in kiosk fast path too."><code>IMWB_STATS</code></td><td>Performance counters</td></tr>
-<tr><td class="tipable" data-tip="On next frame dumps the complete framebuffer to /tmp/opencode/fb-dump.ppm for offline pixel analysis."><code>IMWB_DUMP=1</code></td><td>Framebuffer dump</td></tr>
-<tr><td class="tipable" data-tip="Disables vsync for max-fps benchmarking (tearing possible)."><code>IMWB_NOVSYNC</code></td><td>No vertical sync</td></tr>
-<tr><td class="tipable" data-tip="Force initial window size, e.g. IMWB_WINDOW_SIZE=1920x1080."><code>IMWB_WINDOW_SIZE=WxH</code></td><td>Initial size</td></tr>
-</table>
-</div></section>
+<!-- ====================================================== BUILD -->
+<section id="build" class="wrap">
+  <h2><span class="n">05</span> Dependencies &amp; compile flags</h2>
+  <p class="sub">CMake resolves everything via pkg-config. Full rationale lives in the
+     <a href="README.md">README</a>; this is the operator’s cheat-sheet.</p>
 
-<section id="build"><div class="wrap reveal">
-<h2>Build &amp; run</h2>
-<pre>sudo apt install libsdl3-dev libwebkit2gtk-4.1-dev libwpe-1.0-dev \
-     libwpebackend-fdo-1.0-dev libxkbcommon-dev libglib2.0-dev \
-     libegl-dev libgles2-mesa-dev
+  <table>
+    <tr><th>Dependency</th><th>pkg-config name</th><th>Tested</th><th>Purpose</th></tr>
+    <tr data-tip-tt="engine" data-tip='The WPE port of WebKit. Provides WebKitWebView (WPE flavor), JSC, networking, media. Version floor exists because the FDO bridge API stabilized recently.'>
+      <td>WPE WebKit</td><td><code>wpe-webkit-2.0</code></td><td>≥ 2.53.90</td><td>browser engine</td></tr>
+    <tr data-tip-tt="frames" data-tip='Implements the Wayland FDO protocol that exports compositor frames as EGLImages / shm buffers — the heart of zero-copy.'>
+      <td>WPEBackend-fdo</td><td><code>wpebackend-fdo-1.0</code></td><td>1.15.90</td><td>EGLImage frame export</td></tr>
+    <tr data-tip-tt="backend api" data-tip='Generic loader between WPE WebKit and the platform backend.'>
+      <td>libwpe</td><td><code>wpe-1.0</code></td><td>1.16.3</td><td>backend abstraction</td></tr>
+    <tr data-tip-tt="window system" data-tip='Window creation, input queue, OpenGL context, kiosk fullscreen handling.'>
+      <td>SDL3</td><td><code>sdl3</code></td><td>3.4.14</td><td>windowing / input / GL</td></tr>
+    <tr data-tip-tt="keyboard" data-tip='System keymap → keysym translation incl. Swedish layout support.'>
+      <td>libxkbcommon</td><td><code>xkbcommon</code></td><td>1.6.0</td><td>keyboard mapping</td></tr>
+    <tr data-tip-tt="fallback path" data-tip='Only used when dmabuf export is unavailable: frames arrive as wl_shm buffers and are CPU-uploaded.'>
+      <td>wayland-server</td><td><code>wayland-server</code></td><td>1.22.0</td><td>shm frame fallback</td></tr>
+    <tr data-tip-tt="graphics" data-tip='Headless EGL display hosts WebKit’s GL; the app renders on desktop GL ES 3 via SDL.'>
+      <td>EGL · GLES</td><td><code>egl</code> <code>glesv2</code></td><td>1.5 · 3.2</td><td>surfaces &amp; rendering</td></tr>
+    <tr data-tip-tt="vendored" data-tip='Dear ImGui is vendored under src/libraries/imgui — no external install needed.'>
+      <td>Dear ImGui</td><td>vendored</td><td>1.9x</td><td>toolbar / UI</td></tr>
+  </table>
 
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_BENCHMARK_HARNESS=ON
-cmake --build build -j$(nproc)
+  <p style="color:var(--dim)">Runtime media stack (when <span class="opt">ENABLE_MEDIA<span class="def">=ON</span></span>):
+     <span class="opt">gstreamer1.0-plugins-base</span><span class="opt">-good</span><span class="opt">-bad</span>
+     <span class="opt">-ugly</span><span class="opt">gstreamer1.0-libav</span></p>
 
-./build/imwebbrowser https://example.org          # windowed
-./build/imwebbrowser --kiosk                      # fullscreen direct-blit
-./build/imwebbrowser --bench-fish 5000            # automated aquarium</pre>
-<p class="dim">Vendored Dear ImGui lives in <code>src/libraries/imgui</code>. Everything else comes from the distro.</p>
-</div></section>
+  <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">Configure-time options (all map to WebKit settings)</h3>
+  <table>
+    <tr><th>CMake option</th><th>Default</th><th>Effect</th></tr>
+    <tr><td><code>ENABLE_JAVASCRIPT</code></td><td class="def">ON</td><td>JavaScript execution</td></tr>
+    <tr><td><code>ENABLE_WEBGL</code></td><td class="def">ON</td><td>WebGL content (Aquarium benchmark uses it)</td></tr>
+    <tr><td><code>ENABLE_SMOOTH_SCROLLING</code></td><td class="def">ON</td><td>animated scrolling</td></tr>
+    <tr><td><code>ENABLE_PAGE_CACHE</code></td><td class="def">ON</td><td>back/forward cache</td></tr>
+    <tr><td><code>ENABLE_DNS_PREFETCH</code></td><td class="def">ON</td><td>speculative DNS</td></tr>
+    <tr><td><code>ENABLE_2D_CANVAS</code></td><td class="def">ON</td><td>accelerated 2D canvas</td></tr>
+    <tr><td><code>ENABLE_CARET_BROWSING</code></td><td class="off">OFF</td><td>caret browsing mode</td></tr>
+    <tr><td><code>ENABLE_SPATIAL_NAVIGATION</code></td><td class="off">OFF</td><td>arrow-key spatial nav</td></tr>
+    <tr><td><code>ENABLE_TAB_FOCUS_CYCLE</code></td><td class="def">ON</td><td>Tab cycles focusables</td></tr>
+    <tr><td><code>ENABLE_TEXT_AREAS_RESIZE</code></td><td class="def">ON</td><td>resizable textareas</td></tr>
+    <tr><td><code>ENABLE_BF_GESTURES</code></td><td class="off">OFF</td><td>back/forward gestures</td></tr>
+    <tr><td><code>ENABLE_WEBRTC</code></td><td class="def">ON</td><td>WebRTC / getUserMedia</td></tr>
+    <tr><td><code>ENABLE_MEDIA</code></td><td class="def">ON</td><td>HTML5 A/V playback</td></tr>
+    <tr><td><code>ENABLE_AUDIO</code></td><td class="def">ON</td><td>WebAudio</td></tr>
+    <tr><td><code>ENABLE_AUTOPLAY</code></td><td class="off">OFF</td><td>autoplay without gesture</td></tr>
+    <tr><td><code>ENABLE_MEDIA_CAPABILITIES</code></td><td class="def">ON</td><td>mediaCapabilities API</td></tr>
+    <tr><td><code>ENABLE_ENCRYPTED_MEDIA</code></td><td class="def">ON</td><td>EME / DRM</td></tr>
+    <tr><td><code>ENABLE_GSTREAMER</code></td><td class="def">ON</td><td>require GStreamer stack</td></tr>
+    <tr><td><code>ENABLE_DEVELOPER_EXTRAS</code></td><td class="off">OFF</td><td>Web Inspector</td></tr>
+    <tr><td><code>ENABLE_BENCHMARK_HARNESS</code></td><td class="off">OFF</td><td>Aquarium benchmark CLI</td></tr>
+  </table>
 
-<footer>Built with ♥ for embedded Linux · ImWebBrowser ${PROJECT_VERSION} · docs generated statically, no external assets</footer>
+<pre><b>cmake</b> -B build -DCMAKE_BUILD_TYPE=Release
+<b>cmake</b> --build build -j$(nproc)
+<i># example: lean digital-signage build</i>
+<b>cmake</b> -B build-kiosk -DENABLE_WEBRTC=OFF -DENABLE_ENCRYPTED_MEDIA=OFF \
+      -DENABLE_DEVELOPER_EXTRAS=OFF -DENABLE_BENCHMARK_HARNESS=OFF</pre>
+</section>
+
+<footer>
+  ImWebBrowser — built with SDL3, Dear ImGui and WPE WebKit ·
+  <a href="https://github.com/DanielMartensson/ImWebBrowser">project repository</a> ·
+  README covers install details · this page is fully self-contained HTML
+</footer>
+
+<div class="tip" id="tip"><div class="tt" id="tipTitle"></div><div id="tipBody"></div></div>
 
 <script>
-/* ---------- tooltip ---------- */
-const tip=document.getElementById('tip');
+/* ============================ tooltip engine ============================ */
+const tip=document.getElementById('tip'),tipT=document.getElementById('tipTitle'),tipB=document.getElementById('tipBody');
+function showTip(html,title,x,y){tipT.textContent=title||'';tipT.style.display=title?'block':'none';
+  tipB.innerHTML=html;tip.classList.add('show');moveTip(x,y);}
+function moveTip(x,y){const r=tip.getBoundingClientRect();
+  tip.style.left=Math.min(innerWidth-r.width-14,x+16)+'px';
+  tip.style.top=Math.min(innerHeight-r.height-14,y+18)+'px';}
+function hideTip(){tip.classList.remove('show')}
 document.addEventListener('mousemove',e=>{
-  const t=e.target.closest('.tipable');
-  if(t){tip.innerHTML=t.dataset.tip||t.textContent;tip.classList.add('show');
-    let x=e.clientX+16,y=e.clientY+18;
-    if(x+tip.offsetWidth>innerWidth-8)x=e.clientX-tip.offsetWidth-14;
-    if(y+tip.offsetHeight>innerHeight-8)y=e.clientY-tip.offsetHeight-14;
-    tip.style.left=x+'px';tip.style.top=y+'px';
-  }else tip.classList.remove('show');
+  let el=e.target.closest('[data-tip],[data-tip-tt]');
+  if(el){showTip(el.dataset.tip||'',el.dataset.tipTt,e.clientX,e.clientY);moveTip(e.clientX,e.clientY);}
+  else hideTip();
+},{passive:true});
+
+/* ============================ 3D pipeline ============================ */
+const layers=[
+ {z:  0,ic:'🖥️', t:'SDL3 window',        m:'events · GL context · kiosk',
+  tip:'SDL3 owns the OS window, keyboard/mouse queue and the GLES 3 context. The main loop drains SDL events each iteration and routes them by geometry.',cat:'window'},
+ {z: 80,ic:'🧭', t:'main.cpp router',     m:'geometry-routed input · event loop',
+  tip:'Routes every raw event: toolbar area → Dear ImGui, page area → browser.pointer*/scroll/key. Owns present-on-demand gating, kiosk toggling and the benchmark harness.',cat:'router'},
+ {z:160,ic:'🌐', t:'WPE WebKit',          m:'WebProcess · JSC · GStreamer',
+  tip:'WPE WebKit renders the page in a sandboxed WebProcess. Its threaded compositor produces frames independently of our vsync; we acknowledge instantly so animations run at full speed.',cat:'engine'},
+ {z:240,ic:'📦', t:'DMA-buf export',      m:'wpebackend-fdo · EGLImage',
+  tip:'wpebackend-fdo hands each composited frame to us as a dma-buf backed EGLImage — pixels never cross into CPU memory. A wl_shm fallback exists for driverless setups.',cat:'dma'},
+ {z:320,ic:'⚡', t:'GL texture blit',     m:'kiosk triangle · ImGui view',
+  tip:'updateWebTexture() binds the newest EGLImage as texture storage. Kiosk mode draws an attribute-less fullscreen triangle sampling it; windowed mode composes ImGui around the same texture. afterPresent() retires buffers only after a full swap.',cat:'gl'}
+];
+const scene=document.getElementById('scene'),stage=document.getElementById('stage');
+layers.forEach((L,i)=>{
+  const d=document.createElement('div');d.className='layer';
+  d.style.transform=`translateZ(${L.z}px) rotateX(58deg) rotateZ(45deg)`;
+  d.innerHTML=`<div class="ic">${L.ic}</div><div class="t">${L.t}</div><div class="m">${L.m}</div>`;
+  d.dataset.tip=L.tip;d.dataset.tipTt='layer '+(i+1)+' / '+layers.length+' — '+L.t;
+  scene.appendChild(d);
+  const f=document.createElement('div');f.className='flowline';
+  f.style.transform=`translateX(-50%) translateY(${380-L.z}px) rotateX(-90deg)`;
+  scene.appendChild(f);
 });
-/* ---------- scroll reveal ---------- */
-const io=new IntersectionObserver(es=>es.forEach(e=>e.isIntersecting&&e.target.classList.add('on')),{threshold:.12});
-document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-/* ---------- fps bars + counter ---------- */
-const pio=new IntersectionObserver(es=>es.forEach(en=>{
-  if(!en.isIntersecting)return;pio.unobserve(en.target);
-  document.querySelectorAll('.bar-fill').forEach(b=>b.style.width=(b.dataset.fps/60*100)+'%');
-  const n=document.querySelector('[data-count]');let v=0;
-  const iv=setInterval(()=>{n.textContent=++v;if(v>=+n.dataset.count)clearInterval(iv)},26);
-}),{threshold:.4});
-pio.observe(document.getElementById('perf'));
-/* ---------- WebGL: rotating pipeline layers ---------- */
-const cv=document.getElementById('gl');
-const gl=cv.getContext('webgl',{antialias:true,alpha:true});
-if(gl){
-  const VS=`attribute vec3 p;uniform mat4 mvp;void main(){gl_Position=mvp*vec4(p,1.);}`;
-  const FS=`precision mediump float;uniform vec3 c;uniform float g;
-    void main(){vec3 d=abs(fract(gl_FragCoord.x*.02)-.5)<.03||abs(fract(gl_FragCoord.y*.02)-.5)<.03?c*.9:c*g;gl_FragColor=vec4(d,.85);}`;
-  const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o};
-  const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));
-  gl.linkProgram(pr);gl.useProgram(pr);
-  // cube faces (two triangles each)
-  const F=[],q=(a,b,c,d)=>F.push(...a,...b,...c,...a,...c,...d);
-  q([-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]);q([-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1]);
-  q([-1,-1,1],[-1,-1,-1],[-1,1,-1],[-1,1,1]);q([1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]);
-  q([-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]);q([-1,-1,1],[1,-1,1],[1,-1,-1],[-1,-1,-1]);
-  gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(F),gl.STATIC_DRAW);
-  const loc=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
-  const umvp=gl.getUniformLocation(pr,'mvp'),uc=gl.getUniformLocation(pr,'c'),ug=gl.getUniformLocation(pr,'g');
-  gl.enable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-  let rx=-.45,ry=.6,vx=0,vy=.004,drag=null,lx=0,ly=0;
-  cv.addEventListener('pointerdown',e=>{drag=1;lx=e.clientX;ly=e.clientY});
-  addEventListener('pointerup',()=>drag=null);
-  addEventListener('pointermove',e=>{if(!drag)return;
-    vy=(e.clientX-lx)*.004;vx=(e.clientY-ly)*.004;ry+=vy;rx+=vx;lx=e.clientX;ly=e.clientY;});
-  function persp(f,asp,n,fr){const t=1/Math.tan(f/2),d=n-fr;
-    return[t/asp,0,0,0, 0,t,0,0, 0,0,(n+fr)/d,-1, 0,0,2*n*fr/d,0]}
-  function mat(a,b){const o=new Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];o[i*4+j]=s}return o}
-  const T=z=>[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,z,1];
-  const S=s=>[s,0,0,0, 0,s,0,0, 0,0,s,0, 0,0,0,1];
-  const RX=a=>[1,0,0,0, 0,Math.cos(a),Math.sin(a),0, 0,-Math.sin(a),Math.cos(a),0, 0,0,0,1];
-  const RY=a=>[Math.cos(a),0,-Math.sin(a),0, 0,1,0,0, Math.sin(a),0,Math.cos(a),0, 0,0,0,1];
-  function frame(){
-    if(innerWidth!==cv.width||innerHeight!==cv.height){cv.width=cv.clientWidth;cv.height=cv.clientHeight;gl.viewport(0,0,cv.width,cv.height)}
-    if(!drag){ry+=vy;rx+=vx;vx*=.96;vy*=.96;vy+= (0-vy)*0+.000;}
-    gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-    const P=persp(.9,cv.width/cv.height,.1,60);
-    const layers=[[-1.6,[.31,.82,.77],.55],[0,[.39,.7,.93],.75],[1.6,[1,.78,.47],.55]];
-    layers.forEach(([z,col,g])=>{
-      const mv=mat(mat(RX(rx),RY(ry)),mat(T(z),S(.62)));
-      gl.uniformMatrix4fv(umvp,false,mat(P,mv));
-      gl.uniform3fv(uc,col);gl.uniform1f(ug,g);gl.drawArrays(gl.TRIANGLES,0,F.length/3);
+let rx=-18,rz=32,zoom=1,down=false,lx=0,ly=0,vrz=.06;
+function apply(){scene.style.transform=`rotateX(${rx}deg) rotateZ(${rz}deg) scale(${zoom})`}
+apply();
+let autorot=setInterval(()=>{if(!down){rz+=vrz;apply()}},50);
+stage.addEventListener('mousedown',e=>{down=true;lx=e.clientX;ly=e.clientY});
+addEventListener('mouseup',()=>down=false);
+addEventListener('mousemove',e=>{if(down){rz+=(e.clientX-lx)*.4;rx-=(e.clientY-ly)*.4;lx=e.clientX;ly=e.clientY;apply()}});
+stage.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.min(1.6,Math.max(.55,zoom-e.deltaY*.0012));apply()},{passive:false});
+
+/* ============================ function cards ============================ */
+const FN=[
+// lifecycle
+{g:'Lifecycle',c:'lifecycle',rt:'bool',sig:'init(EGLDisplay, width, height, startUrl)',
+ d:'Boots the whole embedding: headless EGL display hand-off, wpe backend + FDO exportable, xkb keymap, WebKit view, signal wiring and the first navigation.',
+ tip:'<b>Returns false</b> on any fatal setup problem (no EGL, no backend). The GL context must already be current on the calling thread — main.cpp guarantees that. startUrl goes through loadUrl(), so file:// and search strings work here too.'},
+{g:'Lifecycle',c:'lifecycle',rt:'void',sig:'shutdown()',
+ d:'Tears down the view, backend, exportable and GL texture in reverse order of creation.',
+ tip:'Safe to call once after the loop exits. Releases held exported images so the WebProcess can exit cleanly.'},
+{g:'Lifecycle',c:'lifecycle',rt:'void',sig:'resize(width, height)',
+ d:'Re-sizes the WPE view and drops stale frames whose geometry no longer matches.',
+ tip:'Called from applyLayout() on SDL_WINDOW_RESIZED / PIXEL_SIZE_CHANGED. Exports racing the resize are detected by dimension check and released immediately.'},
+{g:'Lifecycle',c:'lifecycle',rt:'void',sig:'pumpEvents()',
+ d:'Drains the GLib main context non-blockingly — delivers WebKit signals and exported frames.',
+ tip:'Runs g_main_context_iteration(FALSE) until pending work is done. Must be called every loop iteration; frame callbacks execute inside it, which is why the loop never sleeps long enough to stall delivery.'},
+// navigation
+{g:'Navigation',c:'nav',rt:'void',sig:'loadUrl(std::string url)',
+ d:'Smart navigation: URLs go direct, bare hosts get https://, file paths open locally, prose searches DuckDuckGo.',
+ tip:'Heuristics: contains “://” → as-is · starts with “/” → file:// · looks like host.tld → https:// · otherwise → duckduckgo search. Also arms press-heal because navigation may swallow a pending click.'},
+{g:'Navigation',c:'nav',rt:'void',sig:'reload(bool bypassCache)',
+ d:'Reloads the page, optionally ignoring caches.',
+ tip:'Ctrl+R → reload(false). Ctrl+Shift+R → reload(true) (bypass cache). Arms press-heal like any load transition.'},
+{g:'Navigation',c:'nav',rt:'void',sig:'goBack() · goForward()',
+ d:'History traversal via WebKit’s back/forward list.',
+ tip:'Toolbar buttons and Alt+Left/Alt+Right land here. canGoBack()/canGoForward() grey out the buttons.'},
+{g:'Navigation',c:'nav',rt:'bool',sig:'canGoBack() const · canGoForward() const',
+ d:'Whether history traversal is possible right now.',
+ tip:'Direct wrappers over webkit_web_view_can_go_back/forward, queried during UI drawing.'},
+// input
+{g:'Input',c:'input',rt:'void',sig:'pointerMotion(float x, float y)',
+ d:'Forwards pointer position in page coordinates with the held-button bitmask attached.',
+ tip:'Coordinates must already be toolbar-offset. state carries (1<<20|21|22) for held buttons — repeating the mask on motion is what keeps drags alive in WebKit.'},
+{g:'Input',c:'input',rt:'uint8_t→plain ids',sig:'pointerButton(x, y, sdlButton, pressed)',
+ d:'Translates SDL button numbers to WPE’s 1=left/2=right/3=middle convention and updates the pressed mask.',
+ tip:'THE bug that once broke every click: WPE wants plain integers plus a running bitmask in state, not Linux BTN_* codes and not 0/1. Also performs the press-heal synthetic UP when armed.'},
+{g:'Input',c:'input',rt:'void',sig:'scroll(float x, float y, float dx, float dy)',
+ d:'Wheel/trackpad scrolling in page coordinates.',
+ tip:'Smooth-scroll setting comes from ENABLE_SMOOTH_SCROLLING. dy sign follows SDL convention and is passed straight through.'},
+{g:'Input',c:'input',rt:'void',sig:'key(uint32_t scancode, uint16_t mods, bool pressed)',
+ d:'Keyboard forwarding through the system XKB keymap (Swedish layout supported).',
+ tip:'scancode → keysym via xkb_state; embedded browser shortcuts (Ctrl+C/V/X/A…) are intercepted first by handleKeyBinding() and translated to wpe keyboard events with proper unicode payloads.'},
+// frame pipeline
+{g:'Frame pipeline',c:'frame',rt:'void',sig:'onExportEglImage(data, image)',
+ d:'FDO callback: a fresh compositor frame arrived as an EGLImage.',
+ tip:'Pipeline: ack frame-complete instantly (keeps rAF at full refresh) → retire the previous buffer → park the new one → bind it via updateWebTexture(). Stale-geometry frames are dropped with immediate release.'},
+{g:'Frame pipeline',c:'frame',rt:'void',sig:'updateWebTexture()',
+ d:'Binds the newest exported EGLImage as the GL texture’s storage — zero copies.',
+ tip:'Uses glEGLImageTargetTexture2DOES. The previous displayed image stays alive through the bind (its storage is referenced until re-bound), which is why retirement is deferred, not immediate.'},
+{g:'Frame pipeline',c:'frame',rt:'GLuint',sig:'webTexture() const',
+ d:'Handle of the texture holding current page pixels (0 before first frame).',
+ tip:'Kiosk blit and the ImGui view sample this. Callers treat 0 as “nothing to draw yet”.',},
+{g:'Frame pipeline',c:'frame',rt:'bool',sig:'takeFrameBound()',
+ d:'Atomically consumes the “new frame bound” flag used by the present gate.',
+ tip:'Set true whenever updateWebTexture binds something new; main.cpp presents when this OR user input OR the 150 ms heartbeat says so — that gate is why idle CPU ≈ 5 %.'},
+{g:'Frame pipeline',c:'frame',rt:'void',sig:'afterPresent()',
+ d:'Call after SDL_GL_SwapWindow: releases the retired buffer now that the swap survived.',
+ tip:'Retire order: displayed → retireImage_ → released after the NEXT swap completes. Releasing earlier lets WebKit overwrite memory we are still sampling — the source of the historic striped-corruption bug.'},
+{g:'Frame pipeline',c:'frame',rt:'int',sig:'viewWidth() const · viewHeight() const',
+ d:'Current logical size of the WPE view.',
+ tip:'Used for coordinate scaling, resize staleness checks and the kiosk viewport.'},
+// state
+{g:'State &amp; signals',c:'state',rt:'field',sig:'std::string title · float progress · bool loading',
+ d:'Live page metadata mirrored from WebKit signals.',
+ tip:'title feeds the OS window title (“ImWebBrowser - page”). progress is estimated-load-progress 0..1 where 1 means idle/done; the toolbar shows it as right-aligned percent text.'},
+{g:'State &amp; signals',c:'state',rt:'field',sig:'bool alive',
+ d:'Set false when the browser should quit (page close request, Ctrl+W/Q).',
+ tip:'The only sanctioned way to end the loop besides SDL quit events. Kiosk additionally ignores WM close-requests entirely.'},
+{g:'State &amp; signals',c:'state',rt:'callback',sig:'onDomFullscreen(bool enter)',
+ d:'Invoked when a page requests/exits DOM fullscreen (YouTube button etc.).',
+ tip:'main.cpp responds by entering/leaving kiosk rendering and then calls notifyDomFullscreenDone() so the page continues. Exit restores the launch mode, not blind windowed.'},
+{g:'State &amp; signals',c:'state',rt:'char[4096]',sig:'urlBuf · urlEditing · focusUrlRequest',
+ d:'URL bar text buffer and focus plumbing shared with the ImGui UI.',
+ tip:'Ctrl+L sets focusUrlRequest; Enter commits through loadUrl(). The buffer is plain C for ImGui::InputTextWithHint compatibility.'},
+// app/ui/bench
+{g:'App / UI / bench',c:'app',rt:'void',sig:'setKiosk(bool enable)',
+ d:'Toggles fullscreen borderless rendering and re-applies layout (F11, DOM fullscreen).',
+ tip:'In kiosk the loop takes the direct-blit path: no NewFrame, no toolbar, one triangle + SwapWindow. WM close requests are ignored while the launch was --kiosk.'},
+{g:'App / UI / bench',c:'app',rt:'void',sig:'drawToolbar(Browser&)',
+ d:'Renders the ImGui toolbar: rounded buttons, URL field, right-aligned progress %.',
+ tip:'Height is ui::kToolbarHeight = 25 logical px; FrameRounding 4 gives the pill look. The same constant drives input routing, so UI and page never fight over events.'},
+{g:'App / UI / bench',c:'app',rt:'void',sig:'startBenchmark(int fishCount)',
+ d:'Automated WebGL Aquarium run (--bench-fish N): loads the benchmark, samples FPS, prints a summary.',
+ tip:'Samples over several windows and logs median fps; used for the 60-vs-43 comparison against Cog. Requires ENABLE_BENCHMARK_HARNESS=ON at configure time.'},
+{g:'App / UI / bench',c:'app',rt:'bool',sig:'handleKeyBinding(keysym, modifiers)',
+ d:'Embedded-level shortcuts handled before the page sees keys.',
+ tip:'Ctrl+L/R/W/Q, Alt+arrows, F11/F3. Returns true when consumed; otherwise the key becomes a wpe_keyboard event for the page.'},
+];
+const groups=[...new Set(FN.map(f=>f.g))];
+document.getElementById('cards').innerHTML=groups.map(g=>`
+ <div class="group" data-g="${g}">
+  <h3>${g}</h3>
+  <div class="grid">
+   ${FN.filter(f=>f.g===g).map((f,i)=>`
+    <div class="card" data-cat="${f.c}" data-search="${(f.sig+' '+f.d+' '+g).toLowerCase()}"
+         data-tip="${f.tip.replace(/"/g,'&quot;')}" data-tip-tt="${f.sig.replace(/"/g,'&quot;')}">
+      ${f.c==='app'?'<span class="tag">app</span>':''}
+      <div class="sig"><span class="rt">${f.rt}</span> ${f.sig}</div>
+      <p>${f.d}</p>
+    </div>`).join('')}
+  </div>
+ </div>`).join('');
+
+/* filters */
+let cat='all';
+const chips=[...document.querySelectorAll('.chip')],search=document.getElementById('search');
+function refilter(){
+  const q=search.value.toLowerCase();
+  document.querySelectorAll('.group').forEach(gr=>{
+    let vis=0;
+    gr.querySelectorAll('.card').forEach(c=>{
+      const ok=(cat==='all'||c.dataset.cat===cat)&&(!q||c.dataset.search.includes(q));
+      c.style.display=ok?'':'none';if(ok)vis++;
     });
-    requestAnimationFrame(frame);
-  }
-  frame();
+    gr.style.display=vis?'':'none';
+  });
 }
+chips.forEach(ch=>ch.onclick=()=>{chips.forEach(c=>c.classList.remove('on'));ch.classList.add('on');cat=ch.dataset.f;refilter()});
+search.oninput=refilter;
+
+/* ============================ perf chart ============================ */
+const cv=document.getElementById('chart'),cx=cv.getContext('2d');
+function draw(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  const H=cv.height,mid=H*0.72;
+  // grid
+  cx.strokeStyle='#1b2734';cx.beginPath();
+  for(let y=40;y<H;y+=40){cx.moveTo(0,y);cx.lineTo(cv.width,y);}cx.stroke();
+  // nap regions + present spikes
+  const frames=[];for(let t=40;t<600;t+=16.6)frames.push(t);
+  cx.strokeStyle='#39c5a3';cx.lineWidth=2;
+  frames.forEach(t=>{cx.beginPath();cx.moveTo(t,mid-6);cx.lineTo(t,mid-34);cx.stroke();});
+  cx.strokeStyle='#5aa7ff';cx.lineWidth=2.5;cx.beginPath();
+  let prevY=mid;frames.forEach((t,i)=>{const y=i%2?mid-52:mid-40;
+    cx.lineTo(t,prevY);cx.lineTo(t+3,y);prevY=y;});
+  cx.stroke();
+  // nap shading
+  cx.fillStyle='rgba(255,180,84,.08)';
+  for(let i=0;i<frames.length-1;i++){const gap=frames[i+1]-frames[i];if(gap>17)
+    cx.fillRect(frames[i]+4,mid-60,gap-8,60);}
+  cx.fillStyle='#8aa0b8';cx.font='12px monospace';
+  cx.fillText('web frames (compositor)',12,18);
+  cx.fillStyle='#5aa7ff';cx.fillText('presented',150,18);
+  cx.fillStyle='#ffb454';cx.fillText('loop napping (CPU ≈ 0)',280,18);
+}
+new ResizeObserver(()=>{cv.width=cv.clientWidth;draw()}).observe(cv);draw();
 </script>
 </body>
 </html>
