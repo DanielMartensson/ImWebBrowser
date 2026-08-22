@@ -22,8 +22,6 @@ struct wpe_fdo_egl_exported_image;
 
 class Browser {
 public:
-    uint32_t frameEventType() const { return frameEventType_; }
-
     // ---- UI-facing state (kept current by WebKit signals) ----
     static constexpr int kUrlBufSize = 4096;
     char urlBuf[kUrlBufSize] = "";   // URL bar text buffer
@@ -84,7 +82,6 @@ public:
 
     // Frame export: WebKit hands us dmabuf-backed EGLImages.
     uint64_t statExports_ = 0;  // exported frames received (debug stats)
-    uint32_t frameEventType_ = 0;
     bool takeFrameBound()
     {
         bool b = frameBound_;

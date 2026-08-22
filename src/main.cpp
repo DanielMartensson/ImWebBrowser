@@ -197,16 +197,7 @@ int main(int argc, char** argv)
 
     for (;;) {
         SDL_Event ev;
-        if (!SDL_PollEvent(&ev)) {
-            // Nothing pending: sleep until real input, a new web frame (the
-            // export callback pushes frameEventType), or the heartbeat
-            // deadline. Keeps idle CPU near zero (was a 100% busy-spin).
-            const gint64 sinceLastMs = (g_get_monotonic_time() - lastPresentUs) / 1000;
-            const uint32_t waitMs = sinceLastMs < 150 ? uint32_t(150 - sinceLastMs) : 0;
-            if (!SDL_WaitEventTimeout(&ev, int(waitMs)))
-                continue;  // timed out -> heartbeat path below presents
-        }
-        do {
+        while (SDL_PollEvent(&ev)) {
             hadEvents = true;
             if (g_getenv("IMWB_DEBUG_INPUT") &&
                 (ev.type == SDL_EVENT_TEXT_INPUT || ev.type == SDL_EVENT_TEXT_EDITING))
@@ -309,15 +300,15 @@ int main(int argc, char** argv)
         browser.updateWebTexture();
         gint64 ts2 = stats ? g_get_monotonic_time() : 0;
 
-        // Present on demand: render only when a fresh web frame arrived, the
-        // user interacted, or a heartbeat elapsed (cursor blink etc.). This
-        // avoids burning GPU/CPU on redundant presents while WebKit is the
-        // bottleneck (Cog presents exactly per delivered frame).
+        // Present on demand, but never spin hot while waiting: a 2 ms nap
+        // keeps idle CPU low without delaying frames or input noticeably.
+        const bool newFrame = browser.takeFrameBound();
         const gint64 nowUs = g_get_monotonic_time();
         const bool due = (nowUs - lastPresentUs) >= 150000;  // 150ms heartbeat
-        const bool newFrame = browser.takeFrameBound();
-        if (!(newFrame || hadEvents || showStats || due))
+        if (!(newFrame || hadEvents || showStats || due)) {
+            SDL_Delay(2);
             continue;
+        }
 
         // Kiosk direct path: blit the web frame straight to the window
         // surface with a minimal shader — no ImGui, no extra scene. This is

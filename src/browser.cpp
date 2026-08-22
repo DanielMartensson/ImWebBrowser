@@ -1,6 +1,5 @@
 #include "browser.hpp"
 
-#include <SDL3/SDL_events.h>
 #include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_keyboard.h>
 #include <wayland-server-protocol.h>  // wl_shm_buffer accessors + formats (exportable side)
@@ -60,14 +59,6 @@ void onExportEglImage(void* data, wpe_fdo_egl_exported_image* image)
     if (self.pendingImage_)
         wpe_view_backend_exportable_fdo_egl_dispatch_release_exported_image(self.exportable_, self.pendingImage_);
     self.pendingImage_ = image;
-
-    // Wake the GUI thread if it is blocked in SDL_WaitEventTimeout: without
-    // this the loop could sit on a fresh frame for up to one heartbeat.
-    if (self.frameEventType_) {
-        SDL_Event wake{};
-        wake.type = self.frameEventType_;
-        SDL_PushEvent(&wake);
-    }
 
     // Bind immediately: this callback runs on the main thread with our GL
     // context current (inside pumpEvents), so presenting the newest frame the
@@ -198,7 +189,6 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
         return false;
     }
 
-    frameEventType_ = SDL_RegisterEvents(1);
     loadUrl(startUrl);
     return true;
 }
