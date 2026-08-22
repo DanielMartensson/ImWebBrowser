@@ -3,6 +3,7 @@
 #include "ui.hpp"
 
 #include <SDL3/SDL.h>
+#include <signal.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <backends/imgui_impl_sdl3.h>
 #include <imgui.h>
@@ -153,6 +154,7 @@ int main(int argc, char** argv)
 
     int pixW = 1280, pixH = 800;
     bool kiosk = args.kiosk;
+    const bool kioskBase = args.kiosk;  // deployment mode: WM can never close us
     int toolbarPx = 0;
     auto applyLayout = [&] {
         SDL_GetWindowSizeInPixels(window, &pixW, &pixH);
@@ -191,9 +193,20 @@ int main(int argc, char** argv)
     std::string lastTitle;
     bool hadEvents = false;
 
+    static gint64 lastPresentUs = 0;
+
     for (;;) {
         SDL_Event ev;
-        while (SDL_PollEvent(&ev)) {
+        if (!SDL_PollEvent(&ev)) {
+            // Nothing pending: sleep until real input, a new web frame (the
+            // export callback pushes frameEventType), or the heartbeat
+            // deadline. Keeps idle CPU near zero (was a 100% busy-spin).
+            const gint64 sinceLastMs = (g_get_monotonic_time() - lastPresentUs) / 1000;
+            const uint32_t waitMs = sinceLastMs < 150 ? uint32_t(150 - sinceLastMs) : 0;
+            if (!SDL_WaitEventTimeout(&ev, int(waitMs)))
+                continue;  // timed out -> heartbeat path below presents
+        }
+        do {
             hadEvents = true;
             if (g_getenv("IMWB_DEBUG_INPUT") &&
                 (ev.type == SDL_EVENT_TEXT_INPUT || ev.type == SDL_EVENT_TEXT_EDITING))
@@ -205,7 +218,15 @@ int main(int argc, char** argv)
 
             switch (ev.type) {
             case SDL_EVENT_QUIT:
+                goto done;
+
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+                // The WM sporadically asks borderless/fullscreen windows to
+                // close (observed on Mint/X11 minutes into a session), which
+                // killed long-running kiosk sessions silently. In kiosk mode
+                // the app is never closable from the outside; Ctrl+W/Q quits.
+                if (kioskBase)
+                    break;
                 goto done;
 
             case SDL_EVENT_WINDOW_RESIZED:
@@ -271,10 +292,10 @@ int main(int argc, char** argv)
             default:
                 break;
             }
-        }
+        } while (SDL_PollEvent(&ev));
 
         if (domFullscreenRequest) {  // honor DOM fullscreen (YouTube etc.)
-            setKiosk(domFullscreenRequest > 0);
+            setKiosk(domFullscreenRequest > 0 ? true : kioskBase);
             browser.notifyDomFullscreenDone(domFullscreenRequest > 0);
             domFullscreenRequest = 0;
         }
@@ -292,7 +313,6 @@ int main(int argc, char** argv)
         // user interacted, or a heartbeat elapsed (cursor blink etc.). This
         // avoids burning GPU/CPU on redundant presents while WebKit is the
         // bottleneck (Cog presents exactly per delivered frame).
-        static gint64 lastPresentUs = 0;
         const gint64 nowUs = g_get_monotonic_time();
         const bool due = (nowUs - lastPresentUs) >= 150000;  // 150ms heartbeat
         const bool newFrame = browser.takeFrameBound();
