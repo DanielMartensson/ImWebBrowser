@@ -3,11 +3,18 @@
 #include "ui.hpp"
 
 #include <SDL3/SDL.h>
+#include <EGL/egl.h>
 #include <signal.h>
+#ifdef IMWB_BACKEND_VULKAN
+#include <backends/imgui_impl_vulkan.h>
+#else
 #include <backends/imgui_impl_opengl3.h>
+#endif
 #include <backends/imgui_impl_sdl3.h>
 #include <imgui.h>
 
+#include <sys/stat.h>
+#include <sys/sysmacros.h>  // major/minor
 #include <cstdio>
 #include <string>
 #include <cstdlib>
@@ -77,12 +84,14 @@ int main(int argc, char** argv)
     // Force EGL: WPE FDO shares our EGLDisplay for zero-copy frame export.
     SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
 
+#ifndef IMWB_BACKEND_VULKAN
     // OpenGL ES 3 context: shared by ImGui and the WebKit frame texture.
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
+#endif
 
     int winW = 1280, winH = 800;
     if (const char* size = g_getenv("IMWB_WINDOW_SIZE")) {  // "WxH", for fair benchmarks
@@ -94,12 +103,40 @@ int main(int argc, char** argv)
             winH = 800;
         }
     }
+#ifdef IMWB_BACKEND_VULKAN
+    SDL_Window* window = SDL_CreateWindow("ImWebBrowser", winW, winH,
+                                          SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+#else
     SDL_Window* window = SDL_CreateWindow("ImWebBrowser", winW, winH,
                                           SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+#endif
     if (!window) {
         std::fprintf(stderr, "error: window creation failed: %s\n", SDL_GetError());
         return 1;
     }
+#ifdef IMWB_BACKEND_VULKAN
+    VulkanPresent vp;
+    if (!vp.init(window, winW, winH))
+        return 1;
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+    ImGui_ImplSDL3_InitForVulkan(window);
+    ImGui_ImplVulkan_InitInfo ii{};
+    auto h = vp.handles();
+    ii.ApiVersion = VK_API_VERSION_1_1;
+    ii.Instance = h.instance;
+    ii.PhysicalDevice = h.physical;
+    ii.Device = h.device;
+    ii.QueueFamily = h.queueFamily;
+    ii.Queue = h.queue;
+    ii.DescriptorPoolSize = 16;  // backend builds its own pool
+    ii.MinImageCount = 2;
+    ii.ImageCount = h.imageCount;
+    ii.PipelineInfoMain.RenderPass = (VkRenderPass)vp.renderPass();
+    ImGui_ImplVulkan_Init(&ii);
+#else
     SDL_GLContext gl = SDL_GL_CreateContext(window);
     if (!gl || !SDL_GL_MakeCurrent(window, gl)) {
         std::fprintf(stderr, "error: GL context creation failed: %s\n", SDL_GetError());
@@ -112,9 +149,13 @@ int main(int argc, char** argv)
     ImGui::StyleColorsDark();
     ImGui_ImplSDL3_InitForOpenGL(window, gl);
     ImGui_ImplOpenGL3_Init("#version 300 es");
+#endif
 
     // Minimal attribute-less fullscreen blit for the kiosk direct path: the
     // exported web frame goes straight to the window surface, no ImGui.
+    // (OpenGL ES build only; the Vulkan build draws the frame through the
+    // ImGui background draw list in both modes.)
+#ifndef IMWB_BACKEND_VULKAN
     GLuint blitProg = 0, blitTexLoc = -1;
     auto ensureBlitProgram = [&] {
         if (blitProg)
@@ -149,6 +190,7 @@ int main(int argc, char** argv)
         glDeleteShader(f);
         blitTexLoc = glGetUniformLocation(blitProg, "uTex");
     };
+#endif  // !IMWB_BACKEND_VULKAN
 
     Browser browser;
 
@@ -163,7 +205,48 @@ int main(int argc, char** argv)
         browser.resize(pixW, pixH - toolbarPx);
     };
 
-    EGLDisplay eglDisplay = SDL_EGL_GetCurrentDisplay();
+    EGLDisplay eglDisplay = EGL_NO_DISPLAY;
+#ifdef IMWB_BACKEND_VULKAN
+    {
+        // Vulkan build: there is no GL context, so open a dedicated EGL
+        // display for WPE/WebKit. Pin it to the SAME GPU as the Vulkan
+        // device by matching DRM render-node minors — cross-vendor dma-buf
+        // imports are not safe.
+        auto qd = (PFNEGLQUERYDEVICESEXTPROC)eglGetProcAddress("eglQueryDevicesEXT");
+        auto qds = (PFNEGLQUERYDEVICESTRINGEXTPROC)eglGetProcAddress("eglQueryDeviceStringEXT");
+        auto gpd = (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
+        const int wantMinor = h.drmRenderMinor;
+        if (qd && qds && gpd && wantMinor >= 0) {
+            EGLDeviceEXT devs[8] = {};
+            EGLint n = 0;
+            if (qd(8, devs, &n)) {
+                for (EGLint i = 0; i < n && eglDisplay == EGL_NO_DISPLAY; i++) {
+                    const char* node = qds(devs[i], EGL_DRM_RENDER_NODE_FILE_EXT);
+                    if (!node)
+                        continue;
+                    struct stat st{};
+                    if (::stat(node, &st) || minor(st.st_rdev) != (unsigned)wantMinor)
+                        continue;
+                    eglDisplay = gpd(EGL_PLATFORM_DEVICE_EXT, devs[i], nullptr);
+                    if (eglDisplay != EGL_NO_DISPLAY &&
+                        !eglInitialize(eglDisplay, nullptr, nullptr))
+                        eglDisplay = EGL_NO_DISPLAY;
+                }
+            }
+        }
+        if (eglDisplay == EGL_NO_DISPLAY) {
+            // Fallback: Mesa's surfaceless platform (first hardware node).
+            eglDisplay = gpd ? gpd(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr)
+                             : eglGetDisplay(EGL_DEFAULT_DISPLAY);
+            if (eglDisplay == EGL_NO_DISPLAY || !eglInitialize(eglDisplay, nullptr, nullptr)) {
+                std::fprintf(stderr, "error: EGL init failed: 0x%x\n", eglGetError());
+                return 1;
+            }
+        }
+    }
+#else
+    eglDisplay = SDL_EGL_GetCurrentDisplay();
+#endif
     if (!eglDisplay) {
         std::fprintf(stderr, "error: no current EGL display: %s\n", SDL_GetError());
         return 1;
@@ -294,11 +377,11 @@ int main(int argc, char** argv)
             break;
 
         const bool stats = g_getenv("IMWB_STATS") != nullptr;
-        gint64 ts0 = stats ? g_get_monotonic_time() : 0;
+        [[maybe_unused]] gint64 ts0 = stats ? g_get_monotonic_time() : 0;
         browser.pumpEvents();
-        gint64 ts1 = stats ? g_get_monotonic_time() : 0;
+        [[maybe_unused]] gint64 ts1 = stats ? g_get_monotonic_time() : 0;
         browser.updateWebTexture();
-        gint64 ts2 = stats ? g_get_monotonic_time() : 0;
+        [[maybe_unused]] gint64 ts2 = stats ? g_get_monotonic_time() : 0;
 
         // Present on demand, but never spin hot while waiting: a 2 ms nap
         // keeps idle CPU low without delaying frames or input noticeably.
@@ -310,6 +393,36 @@ int main(int argc, char** argv)
             continue;
         }
 
+#ifdef IMWB_BACKEND_VULKAN
+        // Vulkan build: both paths draw through ImGui's Vulkan renderer. In
+        // kiosk mode the web frame is the only thing on the background list.
+        ImTextureID webTex = ImTextureID(0);
+        if (VkDmabufFrame* fr = browser.takeDmabufFrame())
+            webTex = vp.importFrame(*fr);  // 0 on import failure
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+        ImGui::NewFrame();
+        const float toolbarLogicalVk = kiosk ? 0.f : ui::kToolbarHeight;
+        if (std::getenv("IMWB_VKGREEN"))  // diagnostic: is the image layer drawn?
+            ImGui::GetBackgroundDrawList()->AddRectFilled(
+                ImVec2(0.f, 0.f), ImVec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y),
+                IM_COL32(0, 160, 0, 255));
+        if (webTex)
+            ImGui::GetBackgroundDrawList()->AddImage(webTex, ImVec2(0.f, toolbarLogicalVk),
+                                                     ImVec2(ImGui::GetIO().DisplaySize.x,
+                                                            ImGui::GetIO().DisplaySize.y));
+        if (!kiosk || showStats) {
+            if (ui::drawToolbar(browser, kiosk) == ui::Action::ToggleKiosk)
+                setKiosk(!kiosk);
+            ui::drawStatsOverlay(showStats, browser);
+        }
+        ImGui::Render();
+        vp.drawFrame(pixW, pixH);
+        browser.afterPresent();
+        lastPresentUs = g_get_monotonic_time();
+        hadEvents = false;
+        continue;  // Vulkan build renders everything above
+#else
         // Kiosk direct path: blit the web frame straight to the window
         // surface with a minimal shader — no ImGui, no extra scene. This is
         // architecturally what Cog does.
@@ -359,7 +472,9 @@ int main(int argc, char** argv)
             }
             continue;
         }
+#endif  // !IMWB_BACKEND_VULKAN
 
+#ifndef IMWB_BACKEND_VULKAN
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
@@ -399,11 +514,13 @@ int main(int argc, char** argv)
         gint64 ts3 = stats ? g_get_monotonic_time() : 0;
         SDL_GL_SwapWindow(window);
         gint64 ts4 = stats ? g_get_monotonic_time() : 0;
+#endif  // !IMWB_BACKEND_VULKAN (windowed GLES render tail)
         browser.afterPresent();
         lastPresentUs = g_get_monotonic_time();
         hadEvents = false;
 
-        if (stats) {  // loop vs export rate + per-stage cost diagnostics
+        if (stats) {  // loop vs export rate + per-stage cost diagnostics (GL path)
+#ifndef IMWB_BACKEND_VULKAN
             static uint64_t frames = 0;
             static gint64 t0 = 0;
             static double ms_pump = 0, ms_update = 0, ms_draw = 0, ms_swap = 0;
@@ -425,6 +542,7 @@ int main(int argc, char** argv)
                 t0 = now;
                 ms_pump = ms_update = ms_draw = ms_swap = 0;
             }
+#endif
         }
 
         if (browser.title != lastTitle) {  // keep the OS window title current
@@ -438,10 +556,15 @@ int main(int argc, char** argv)
 
 done:
     browser.shutdown();
+#ifdef IMWB_BACKEND_VULKAN
+    ImGui_ImplVulkan_Shutdown();
+    vp.shutdown();
+#else
     ImGui_ImplOpenGL3_Shutdown();
+    SDL_GL_DestroyContext(gl);
+#endif
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
-    SDL_GL_DestroyContext(gl);
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;

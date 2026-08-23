@@ -85,6 +85,11 @@ void onExportShmBuffer(void* data, wpe_fdo_shm_exported_buffer* buffer)
 
     if (w == uint32_t(self.viewWidth()) && h == uint32_t(self.viewHeight())
         && (format == WL_SHM_FORMAT_ARGB8888 || format == WL_SHM_FORMAT_XRGB8888)) {
+#ifdef IMWB_BACKEND_VULKAN
+        // CPU fallback frames have no dma-buf to import; with a working EGL
+        // GPU path WebKit never sends them.
+        g_warning("shm frame received but Vulkan build cannot render it");
+#else
         // An EGLImage-backed texture cannot be re-specified: recreate on switch.
         if (self.frameSource_ == Browser::FrameSource::EglImage) {
             glDeleteTextures(1, &self.webTexture_);
@@ -107,6 +112,7 @@ void onExportShmBuffer(void* data, wpe_fdo_shm_exported_buffer* buffer)
         wl_shm_buffer_end_access(shm);
         self.frameSource_ = Browser::FrameSource::Shm;
         self.frameBound_ = true;
+#endif
     } else {
         g_warning("unsupported shm frame %ux%u fmt 0x%x, dropped", w, h, format);
     }
@@ -137,6 +143,7 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
 {
     width_ = width;
     height_ = height;
+    eglDisplay_ = eglDisplay;
 
     // Select the WPE backend implementation and share our EGL display with it,
     // exactly like Cog's wayland/headless platforms do.
@@ -182,12 +189,14 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
         }
     }
 
+#ifndef IMWB_BACKEND_VULKAN
     glImageTargetTexture2D_ = reinterpret_cast<PFnGlEGLImageTargetTexture2DOES>(
         eglGetProcAddress("glEGLImageTargetTexture2DOES"));
     if (!glImageTargetTexture2D_) {
         std::fprintf(stderr, "error: glEGLImageTargetTexture2DOES unavailable\n");
         return false;
     }
+#endif
 
     loadUrl(startUrl);
     return true;
@@ -204,8 +213,10 @@ void Browser::shutdown()
     g_clear_pointer(&xkbKeymap_, xkb_keymap_unref);
     g_clear_pointer(&xkbCtx_, xkb_context_unref);
 
+#ifndef IMWB_BACKEND_VULKAN
     if (webTexture_)
         glDeleteTextures(1, &webTexture_);
+#endif
 }
 
 void Browser::applySettings()
@@ -693,6 +704,20 @@ void Browser::updateWebTexture()
     if (!pendingImage_)
         return;
 
+#ifdef IMWB_BACKEND_VULKAN
+    void* key = pendingImage_;
+    displayedImage_ = pendingImage_;
+    pendingImage_ = nullptr;
+    // WebKit recycles exported-image pointers, so a cached entry whose fds
+    // were already handed to Vulkan must be re-exported fresh.
+    auto it = dmabufCache_.find(key);
+    if (it == dmabufCache_.end() || it->second.consumed)
+        exportDmabuf(key, wpe_fdo_egl_exported_image_get_egl_image(
+                              static_cast<wpe_fdo_egl_exported_image*>(key)));
+    vkCurrentKey_ = key;
+    vkNew_ = true;
+    frameBound_ = true;
+#else
     // A shm-uploaded texture cannot be rebound to an EGLImage: recreate.
     if (frameSource_ == FrameSource::Shm) {
         glDeleteTextures(1, &webTexture_);
@@ -720,7 +745,70 @@ void Browser::updateWebTexture()
     displayedImage_ = pendingImage_;
     pendingImage_ = nullptr;
     frameBound_ = true;
+#endif
 }
+
+#ifdef IMWB_BACKEND_VULKAN
+VkDmabufFrame* Browser::takeDmabufFrame()
+{
+    if (!vkNew_ || !vkCurrentKey_)
+        return nullptr;
+    vkNew_ = false;
+    auto it = dmabufCache_.find(vkCurrentKey_);
+    return it != dmabufCache_.end() ? &it->second : nullptr;
+}
+
+// Export an EGLImage as dma-buf planes via the Mesa extensions, cached per
+// exported-image pointer so each buffer is exported exactly once.
+bool Browser::exportDmabuf(void* key, EGLImageKHR image)
+{
+    using QueryFn = EGLBoolean (*)(EGLDisplay, EGLImageKHR, int*, int*, EGLuint64KHR*);
+    using ExportFn = EGLBoolean (*)(EGLDisplay, EGLImageKHR, int*, EGLint*, EGLint*);
+    static QueryFn queryFn = nullptr;
+    static ExportFn exportFn = nullptr;
+    if (!queryFn) {
+        queryFn = (QueryFn)eglGetProcAddress("eglExportDMABUFImageQueryMESA");
+        exportFn = (ExportFn)eglGetProcAddress("eglExportDMABUFImageMESA");
+        if (!queryFn || !exportFn) {
+            std::fprintf(stderr, "[vk] EGL MESA dmabuf export not available\n");
+            return false;
+        }
+    }
+
+    int fourcc = 0, nplanes = 0;
+    EGLuint64KHR modifiers[4] = {0, 0, 0, 0};
+    if (!queryFn(eglDisplay_, image, &fourcc, &nplanes, modifiers) || nplanes < 1 ||
+        nplanes > 4) {
+        std::fprintf(stderr, "[vk] eglExportDMABUFImageQueryMESA failed\n");
+        return false;
+    }
+
+    VkDmabufFrame f;
+    f.fourcc = (uint32_t)fourcc;
+    f.modifier = modifiers[0];
+    f.width = uint32_t(width_);
+    f.height = uint32_t(height_);
+    f.planeCount = uint32_t(nplanes);
+    int fds[4] = {-1, -1, -1, -1};
+    EGLint strides[4] = {0, 0, 0, 0}, offsets[4] = {0, 0, 0, 0};
+    if (!exportFn(eglDisplay_, image, fds, strides, offsets)) {
+        std::fprintf(stderr, "[vk] eglExportDMABUFImageMESA failed\n");
+        return false;
+    }
+    for (int i = 0; i < nplanes; i++) {
+        f.planes[i].fd = fds[i];
+        f.planes[i].stride = uint32_t(strides[i]);
+        f.planes[i].offset = uint32_t(offsets[i]);
+    }
+    dmabufCache_[key] = f;  // fd ownership moves to the importer on use
+    // Recycled pointers reuse entries, but distinct buffers accumulate: drop
+    // consumed ones once the cache grows large.
+    if (dmabufCache_.size() > 32)
+        for (auto it2 = dmabufCache_.begin(); it2 != dmabufCache_.end();)
+            it2->second.consumed ? it2 = dmabufCache_.erase(it2) : ++it2;
+    return true;
+}
+#endif
 
 void Browser::afterPresent()
 {

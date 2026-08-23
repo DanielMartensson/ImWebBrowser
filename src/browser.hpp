@@ -9,10 +9,16 @@
 #include <wpe/wpe.h>
 
 #include <EGL/egl.h>
+#include <EGL/eglext.h>  // EGLImageKHR
+#ifdef IMWB_BACKEND_VULKAN
+#include "vk_backend.hpp"
+#else
 #include <GLES3/gl3.h>
 #include <GLES2/gl2ext.h>  // GLeglImageOES, glEGLImageTargetTexture2DOES
+#endif
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <string>
 #include <unordered_map>
 
@@ -69,8 +75,12 @@ public:
 
     // Rendering: import the latest exported WebKit frame, then present it.
     void updateWebTexture();
-    void afterPresent();  // call after SDL_GL_SwapWindow
+    void afterPresent();  // call after the swap/present completed
+#ifdef IMWB_BACKEND_VULKAN
+    VkDmabufFrame* takeDmabufFrame();  // non-null when a fresh frame was bound
+#else
     GLuint webTexture() const { return webTexture_; }
+#endif
     int viewWidth() const { return width_; }
     int viewHeight() const { return height_; }
 
@@ -113,14 +123,22 @@ private:
     struct wpe_view_backend_exportable_fdo* exportable_ = nullptr;
     struct wpe_view_backend* backend_ = nullptr;
     WebKitWebView* view_ = nullptr;
+    EGLDisplay eglDisplay_ = EGL_NO_DISPLAY;
 
     // Frame import state. WebKit exports dmabuf-backed EGLImages; we bind the
-    // newest one to a GL texture and sample it directly (zero copies). If the
-    // GPU path is unavailable WebKit falls back to shared-memory frames,
-    // which are uploaded once per frame (CPU copy, fallback only).
+    // newest one to a GL texture (or export its dma-buf planes to Vulkan) and
+    // sample it directly (zero copies). If the GPU path is unavailable WebKit
+    // falls back to shared-memory frames, uploaded once per frame (CPU copy).
+#ifdef IMWB_BACKEND_VULKAN
+    std::map<void*, VkDmabufFrame> dmabufCache_;
+    void* vkCurrentKey_ = nullptr;
+    bool vkNew_ = false;
+    bool exportDmabuf(void* key, EGLImageKHR image);
+#else
     enum class FrameSource { None, EglImage, Shm };
     GLuint webTexture_ = 0;
     FrameSource frameSource_ = FrameSource::None;
+#endif
     wpe_fdo_egl_exported_image* displayedImage_ = nullptr;  // bound texture
     wpe_fdo_egl_exported_image* pendingImage_ = nullptr;     // not yet shown
     wpe_fdo_egl_exported_image* retireImage_ = nullptr;      // presented once, released after next swap
@@ -134,8 +152,10 @@ private:
     std::unordered_map<uint32_t, uint32_t> symToKeycode_;
     static uint32_t specialKeySym(uint32_t sdlKey);
 
+#ifndef IMWB_BACKEND_VULKAN
     using PFnGlEGLImageTargetTexture2DOES = void(GL_APIENTRYP)(GLenum target, GLeglImageOES image);
     PFnGlEGLImageTargetTexture2DOES glImageTargetTexture2D_ = nullptr;
+#endif
 
 #if ENABLE_BENCHMARK_HARNESS
     // Automated WebGL Aquarium benchmark (--bench-fish N). Samples the page's

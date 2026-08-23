@@ -11,13 +11,30 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3)
 find_package(PkgConfig REQUIRED)
 
+# ---------------------------------------------------------------------------
+# Rendering backend selection: OpenGL ES (default, works everywhere SDL3 +
+# Mesa do) or Vulkan (kiosk/UI present through the ImGui Vulkan backend and
+# dma-buf external-memory import). Enabling Vulkan takes precedence.
+# ---------------------------------------------------------------------------
+option(IMWB_BACKEND_OPENGL_ES "Render with an OpenGL ES 3 context (SDL3 GL)" ON)
+option(IMWB_BACKEND_VULKAN    "Render with Vulkan (dma-buf import + swapchain)" OFF)
+
+if(IMWB_BACKEND_VULKAN AND IMWB_BACKEND_OPENGL_ES)
+    message(STATUS "IMWB_BACKEND_VULKAN=ON: disabling the OpenGL ES backend")
+    set(IMWB_BACKEND_OPENGL_ES OFF CACHE BOOL "" FORCE)
+endif()
+
 pkg_check_modules(WPEWEBKIT REQUIRED IMPORTED_TARGET wpe-webkit-2.0>=2.53.90)
 pkg_check_modules(WPEFDO REQUIRED IMPORTED_TARGET wpebackend-fdo-1.0)
 pkg_check_modules(LIBWPE REQUIRED IMPORTED_TARGET wpe-1.0)
 pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
 pkg_check_modules(WAYLAND_SERVER REQUIRED IMPORTED_TARGET wayland-server)  # shm frame fallback
 pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)
-pkg_check_modules(GLESV2 REQUIRED IMPORTED_TARGET glesv2)
+if(IMWB_BACKEND_OPENGL_ES)
+    pkg_check_modules(GLESV2 REQUIRED IMPORTED_TARGET glesv2)
+else()
+    find_package(Vulkan REQUIRED)
+endif()
 
 message(STATUS "WPE WebKit ${WPEWEBKIT_VERSION}")
 message(STATUS "WPE FDO    ${WPEFDO_VERSION}")
@@ -102,20 +119,31 @@ message(STATUS "  misc     : webrtc=${ENABLE_WEBRTC} devtools=${ENABLE_DEVELOPER
 message(STATUS "")
 
 # ---------------------------------------------------------------------------
-# Dear ImGui (bundled in src/libraries/imgui) with SDL3 + OpenGL ES 3 backends.
+# Dear ImGui (bundled in src/libraries/imgui) with SDL3 + the chosen render
+# backend (OpenGL ES 3 or Vulkan — imgui_impl_vulkan carries precompiled
+# SPIR-V, so no shader toolchain is required for Vulkan builds).
 # ---------------------------------------------------------------------------
-add_library(imgui STATIC
+set(IMGUI_SOURCES
     src/libraries/imgui/imgui.cpp
     src/libraries/imgui/imgui_draw.cpp
     src/libraries/imgui/imgui_tables.cpp
     src/libraries/imgui/imgui_widgets.cpp
     src/libraries/imgui/backends/imgui_impl_sdl3.cpp
-    src/libraries/imgui/backends/imgui_impl_opengl3.cpp
 )
+add_library(imgui STATIC ${IMGUI_SOURCES})
 target_include_directories(imgui PUBLIC src/libraries/imgui)
 target_link_libraries(imgui PUBLIC SDL3::SDL3)
-# The app creates an OpenGL ES 3 context; make the renderer use its ES3 path.
-target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_ES3)
+
+if(IMWB_BACKEND_OPENGL_ES)
+    list(APPEND IMGUI_SOURCES src/libraries/imgui/backends/imgui_impl_opengl3.cpp)
+    target_sources(imgui PRIVATE src/libraries/imgui/backends/imgui_impl_opengl3.cpp)
+    # The app creates an OpenGL ES 3 context; make the renderer use its ES3 path.
+    target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_ES3)
+else()
+    target_sources(imgui PRIVATE src/libraries/imgui/backends/imgui_impl_vulkan.cpp)
+    # Resolve the vk* calls inside imgui_impl_vulkan.cpp.
+    target_link_libraries(imgui PUBLIC Vulkan::Vulkan)
+endif()
 
 # ---------------------------------------------------------------------------
 # Browser.
@@ -125,8 +153,18 @@ add_executable(imwebbrowser
     src/browser.cpp
     src/ui.cpp
 )
+if(IMWB_BACKEND_VULKAN)
+    target_sources(imwebbrowser PRIVATE src/vk_backend.cpp)
+endif()
 target_compile_options(imwebbrowser PRIVATE -Wall -Wextra -Wno-missing-field-initializers)
 target_include_directories(imwebbrowser PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+if(IMWB_BACKEND_OPENGL_ES)
+    target_compile_definitions(imwebbrowser PRIVATE IMWB_BACKEND_OPENGL_ES=1)
+    target_link_libraries(imwebbrowser PRIVATE PkgConfig::GLESV2)
+else()
+    target_compile_definitions(imwebbrowser PRIVATE IMWB_BACKEND_VULKAN=1)
+    target_link_libraries(imwebbrowser PRIVATE Vulkan::Vulkan)
+endif()
 target_link_libraries(imwebbrowser PRIVATE
     imgui
     SDL3::SDL3
@@ -136,5 +174,10 @@ target_link_libraries(imwebbrowser PRIVATE
     PkgConfig::XKBCOMMON
     PkgConfig::WAYLAND_SERVER
     PkgConfig::EGL
-    PkgConfig::GLESV2
 )
+
+# ---------------------------------------------------------------------------
+# Install.
+# ---------------------------------------------------------------------------
+include(GNUInstallDirs)
+install(TARGETS imwebbrowser RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
