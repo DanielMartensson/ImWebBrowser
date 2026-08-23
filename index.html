@@ -127,10 +127,12 @@ footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);colo
   <div class="wrap">
     <h1>ImWebBrowser</h1>
     <p class="tagline">A kiosk-grade web browser on SDL3&nbsp;+&nbsp;Dear&nbsp;ImGui&nbsp;+&nbsp;WPE&nbsp;WebKit,
-    rendering pages through a <b>zero-copy DMA-buf pipeline</b>. This is the living manual — hover anything.</p>
+    rendering pages through a <b>zero-copy DMA-buf pipeline</b> with your choice of
+    <b>OpenGL ES 3</b> or <b>Vulkan</b> rendering. This is the living manual — hover anything.</p>
     <div class="badges">
       <span class="badge">engine <b>WPE WebKit ≥ 2.53.90</b></span>
-      <span class="badge">rendering <b>EGLImage · zero-copy</b></span>
+      <span class="badge">backends <b>OpenGLES 3 · Vulkan</b></span>
+      <span class="badge">rendering <b>EGLImage/VkImage · zero-copy</b></span>
       <span class="badge">kiosk vsync cap <b>60 fps</b></span>
       <span class="badge">idle CPU <b>≈ 5 %</b></span>
     </div>
@@ -228,21 +230,30 @@ footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);colo
       <td>WPEBackend-fdo</td><td><code>wpebackend-fdo-1.0</code></td><td>1.15.90</td><td>EGLImage frame export</td></tr>
     <tr data-tip-tt="backend api" data-tip='Generic loader between WPE WebKit and the platform backend.'>
       <td>libwpe</td><td><code>wpe-1.0</code></td><td>1.16.3</td><td>backend abstraction</td></tr>
-    <tr data-tip-tt="window system" data-tip='Window creation, input queue, OpenGL context, kiosk fullscreen handling.'>
-      <td>SDL3</td><td><code>sdl3</code></td><td>3.4.14</td><td>windowing / input / GL</td></tr>
+    <tr data-tip-tt="window system" data-tip='Window creation, input queue, OpenGL/Vulkan platform, kiosk fullscreen handling.'>
+      <td>SDL3</td><td><code>sdl3</code></td><td>3.4.14</td><td>windowing / input / GL·VK</td></tr>
     <tr data-tip-tt="keyboard" data-tip='System keymap → keysym translation incl. Swedish layout support.'>
       <td>libxkbcommon</td><td><code>xkbcommon</code></td><td>1.6.0</td><td>keyboard mapping</td></tr>
     <tr data-tip-tt="fallback path" data-tip='Only used when dmabuf export is unavailable: frames arrive as wl_shm buffers and are CPU-uploaded.'>
       <td>wayland-server</td><td><code>wayland-server</code></td><td>1.22.0</td><td>shm frame fallback</td></tr>
-    <tr data-tip-tt="graphics" data-tip='Headless EGL display hosts WebKit’s GL; the app renders on desktop GL ES 3 via SDL.'>
-      <td>EGL · GLES</td><td><code>egl</code> <code>glesv2</code></td><td>1.5 · 3.2</td><td>surfaces &amp; rendering</td></tr>
-    <tr data-tip-tt="vendored" data-tip='Dear ImGui is vendored under src/libraries/imgui — no external install needed.'>
+    <tr data-tip-tt="graphics" data-tip='Headless EGL display hosts WebKit’s GL in both builds. GLES build renders on desktop GL ES 3 via SDL; Vulkan build needs the Vulkan loader/headers (libvulkan-dev) instead of glesv2.'>
+      <td>EGL · GLES / Vulkan</td><td><code>egl</code> <code>glesv2</code> · <code>libvulkan</code></td><td>1.5 · 3.2 · 1.3</td><td>surfaces &amp; rendering</td></tr>
+    <tr data-tip-tt="vendored" data-tip='Dear ImGui is vendored under src/libraries/imgui — no external install needed. imgui_impl_vulkan carries precompiled SPIR-V, so Vulkan builds need no shader toolchain.'>
       <td>Dear ImGui</td><td>vendored</td><td>1.9x</td><td>toolbar / UI</td></tr>
   </table>
 
   <p style="color:var(--dim)">Runtime media stack (when <span class="opt">ENABLE_MEDIA<span class="def">=ON</span></span>):
      <span class="opt">gstreamer1.0-plugins-base</span><span class="opt">-good</span><span class="opt">-bad</span>
      <span class="opt">-ugly</span><span class="opt">gstreamer1.0-libav</span></p>
+
+  <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">Rendering backend</h3>
+  <table>
+    <tr><th>CMake option</th><th>Default</th><th>Effect</th></tr>
+    <tr data-tip='Default. SDL3 GL context (GLES 3); web frames bound as EGLImage-backed GL textures; kiosk uses an attribute-less blit triangle.'>
+      <td><code>IMWB_BACKEND_OPENGL_ES</code></td><td class="def">ON</td><td>OpenGL ES 3 rendering</td></tr>
+    <tr data-tip='Vulkan swapchain present through Dear ImGui’s Vulkan renderer; web frames imported as VkImages via VK_EXT_external_memory_dma_buf with DRM-modifier tiling. Enabling this disables the GLES backend. Needs a mature Vulkan driver.'>
+      <td><code>IMWB_BACKEND_VULKAN</code></td><td class="off">OFF</td><td>Vulkan rendering + dma-buf VkImage import</td></tr>
+  </table>
 
   <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">Configure-time options (all map to WebKit settings)</h3>
   <table>
@@ -271,6 +282,9 @@ footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);colo
 
 <pre><b>cmake</b> -B build -DCMAKE_BUILD_TYPE=Release
 <b>cmake</b> --build build -j$(nproc)
+<i># Vulkan backend</i>
+<b>cmake</b> -B build-vk -DCMAKE_BUILD_TYPE=Release -DIMWB_BACKEND_VULKAN=ON
+<b>cmake</b> --build build-vk -j$(nproc)
 <i># example: lean digital-signage build</i>
 <b>cmake</b> -B build-kiosk -DENABLE_WEBRTC=OFF -DENABLE_ENCRYPTED_MEDIA=OFF \
       -DENABLE_DEVELOPER_EXTRAS=OFF -DENABLE_BENCHMARK_HARNESS=OFF</pre>
@@ -301,16 +315,16 @@ document.addEventListener('mousemove',e=>{
 
 /* ============================ 3D pipeline ============================ */
 const layers=[
- {z:  0,ic:'🖥️', t:'SDL3 window',        m:'events · GL context · kiosk',
-  tip:'SDL3 owns the OS window, keyboard/mouse queue and the GLES 3 context. The main loop drains SDL events each iteration and routes them by geometry.',cat:'window'},
+ {z:  0,ic:'🖥️', t:'SDL3 window',        m:'events · GLES3 or Vulkan · kiosk',
+  tip:'SDL3 owns the OS window, keyboard/mouse queue and the rendering platform: an OpenGL ES 3 context (default build) or a Vulkan surface + swapchain (-DIMWB_BACKEND_VULKAN=ON). The main loop drains SDL events each iteration and routes them by geometry.',cat:'window'},
  {z: 80,ic:'🧭', t:'main.cpp router',     m:'geometry-routed input · event loop',
   tip:'Routes every raw event: toolbar area → Dear ImGui, page area → browser.pointer*/scroll/key. Owns present-on-demand gating, kiosk toggling and the benchmark harness.',cat:'router'},
  {z:160,ic:'🌐', t:'WPE WebKit',          m:'WebProcess · JSC · GStreamer',
-  tip:'WPE WebKit renders the page in a sandboxed WebProcess. Its threaded compositor produces frames independently of our vsync; we acknowledge instantly so animations run at full speed.',cat:'engine'},
- {z:240,ic:'📦', t:'DMA-buf export',      m:'wpebackend-fdo · EGLImage',
-  tip:'wpebackend-fdo hands each composited frame to us as a dma-buf backed EGLImage — pixels never cross into CPU memory. A wl_shm fallback exists for driverless setups.',cat:'dma'},
- {z:320,ic:'⚡', t:'GL texture blit',     m:'kiosk triangle · ImGui view',
-  tip:'updateWebTexture() binds the newest EGLImage as texture storage. Kiosk mode draws an attribute-less fullscreen triangle sampling it; windowed mode composes ImGui around the same texture. afterPresent() retires buffers only after a full swap.',cat:'gl'}
+  tip:'WPE WebKit renders the page in a sandboxed WebProcess. Its threaded compositor produces frames independently of our vsync; we acknowledge instantly so animations run at full speed. In the Vulkan build its EGL display is pinned to the same GPU as the VkPhysicalDevice via DRM render-node matching.',cat:'engine'},
+ {z:240,ic:'📦', t:'DMA-buf export',      m:'wpebackend-fdo · EGLImage → planes',
+  tip:'wpebackend-fdo hands each composited frame to us as a dma-buf backed EGLImage — pixels never cross into CPU memory. The GLES build binds it as texture storage; the Vulkan build exports its planes (eglExportDMABUFImageMESA) for external-memory import. A wl_shm fallback exists for driverless setups.',cat:'dma'},
+ {z:320,ic:'⚡', t:'Present',              m:'GLES: blit triangle · VK: swapchain image',
+  tip:'GLES build: updateWebTexture() binds the newest EGLImage as texture storage; kiosk draws an attribute-less fullscreen triangle, windowed composes ImGui around it. Vulkan build: the dma-buf becomes a VkImage (VK_EXT_external_memory_dma_buf + modifier tiling) drawn through Dear ImGui’s Vulkan renderer into a swapchain image. afterPresent() retires buffers only after a full swap.',cat:'gl'}
 ];
 const scene=document.getElementById('scene'),stage=document.getElementById('stage');
 layers.forEach((L,i)=>{
@@ -378,20 +392,30 @@ const FN=[
  d:'FDO callback: a fresh compositor frame arrived as an EGLImage.',
  tip:'Pipeline: ack frame-complete instantly (keeps rAF at full refresh) → retire the previous buffer → park the new one → bind it via updateWebTexture(). Stale-geometry frames are dropped with immediate release.'},
 {g:'Frame pipeline',c:'frame',rt:'void',sig:'updateWebTexture()',
- d:'Binds the newest exported EGLImage as the GL texture’s storage — zero copies.',
- tip:'Uses glEGLImageTargetTexture2DOES. The previous displayed image stays alive through the bind (its storage is referenced until re-bound), which is why retirement is deferred, not immediate.'},
-{g:'Frame pipeline',c:'frame',rt:'GLuint',sig:'webTexture() const',
- d:'Handle of the texture holding current page pixels (0 before first frame).',
- tip:'Kiosk blit and the ImGui view sample this. Callers treat 0 as “nothing to draw yet”.',},
+ d:'Binds the newest exported frame for sampling — GL texture (GLES) or fresh dma-buf export (Vulkan).',
+ tip:'GLES build: glEGLImageTargetTexture2DOES. Vulkan build: exports the EGLImage’s planes via eglExportDMABUFImageQueryMESA/MESA, cached per buffer and re-exported when WebKit recycles the pointer with consumed fds. Retirement stays deferred in both builds.'},
+{g:'Frame pipeline',c:'frame',rt:'GLuint / VkDmabufFrame*',sig:'webTexture() · takeDmabufFrame()',
+ d:'Current page pixels: GL texture handle (GLES build, 0 before first frame) or the latest dma-buf frame to import (Vulkan build).',
+ tip:'Kiosk blit and the ImGui view sample these. GLES callers treat 0 as “nothing to draw yet”; the Vulkan presenter returns an ImTextureID descriptor from importFrame().',},
 {g:'Frame pipeline',c:'frame',rt:'bool',sig:'takeFrameBound()',
  d:'Atomically consumes the “new frame bound” flag used by the present gate.',
  tip:'Set true whenever updateWebTexture binds something new; main.cpp presents when this OR user input OR the 150 ms heartbeat says so — that gate is why idle CPU ≈ 5 %.'},
 {g:'Frame pipeline',c:'frame',rt:'void',sig:'afterPresent()',
- d:'Call after SDL_GL_SwapWindow: releases the retired buffer now that the swap survived.',
- tip:'Retire order: displayed → retireImage_ → released after the NEXT swap completes. Releasing earlier lets WebKit overwrite memory we are still sampling — the source of the historic striped-corruption bug.'},
+ d:'Call after the swap/present completed: releases the retired buffer now that the frame survived.',
+ tip:'Retire order: displayed → retireImage_ → released after the NEXT swap/present completes. Releasing earlier lets WebKit overwrite memory we are still sampling — the source of the historic striped-corruption bug.'},
 {g:'Frame pipeline',c:'frame',rt:'int',sig:'viewWidth() const · viewHeight() const',
  d:'Current logical size of the WPE view.',
  tip:'Used for coordinate scaling, resize staleness checks and the kiosk viewport.'},
+// vulkan backend
+{g:'Vulkan backend',c:'vk',rt:'bool',sig:'VulkanPresent::init(window, w, h)',
+ d:'Boots the presentation stack: instance, surface, physical-device pick, render pass and swapchain.',
+ tip:'Prefers a discrete GPU. Records the device’s DRM render-node minor so main.cpp can pin WPE’s EGL display to the same GPU — cross-vendor dma-buf imports are unsafe. Diagnostics: IMWB_VKDUMP writes a ppm of the presented swapchain image.'},
+{g:'Vulkan backend',c:'vk',rt:'ImTextureID',sig:'importFrame(VkDmabufFrame&)',
+ d:'Imports a dma-buf frame as a VkImage and returns an ImGui texture descriptor.',
+ tip:'Uses VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT (not OPAQUE_FD — that samples black!) with DRM-modifier tiling when available, else stride-based linear. Consumes the fds and marks the frame consumed; the browser re-exports recycled buffers with fresh fds.'},
+{g:'Vulkan backend',c:'vk',rt:'bool',sig:'drawFrame(w, h)',
+ d:'Records ImGui’s draw data into a command buffer, submits and presents via vsync FIFO.',
+ tip:'Acquire/render/submit semaphores + per-image fences; returns true on success or stale-swapchain (caller resizes). Both kiosk and windowed modes route through here in the Vulkan build.'},
 // state
 {g:'State &amp; signals',c:'state',rt:'field',sig:'std::string title · float progress · bool loading',
  d:'Live page metadata mirrored from WebKit signals.',

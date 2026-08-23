@@ -2,15 +2,18 @@
   <img alt="ImWebBrowser" src="https://img.shields.io/badge/engine-WPE%20WebKit%202.53-blue" />
   <img alt="SDL3" src="https://img.shields.io/badge/UI-SDL3%20%2B%20Dear%20ImGui-green" />
   <img alt="rendering" src="https://img.shields.io/badge/rendering-zero--copy%20DMA--buf-orange" />
+  <img alt="backends" src="https://img.shields.io/badge/backends-OpenGLES%203%20%7C%20Vulkan-purple" />
   <img alt="license" src="https://img.shields.io/badge/platform-Linux-lightgrey" />
 </p>
 
 # ImWebBrowser
 
 A lightweight kiosk-grade web browser built on **SDL3 + Dear ImGui + WPE WebKit**
-with **zero-copy DMA-buf rendering**. Frames produced by WebKit's compositor are
-imported directly as `EGLImage` textures and blitted to the screen — no CPU
-copies, no intermediate buffers.
+with **zero-copy DMA-buf rendering**, available with two compile-time rendering
+backends: **OpenGL ES 3** (default) and **Vulkan**. Frames produced by WebKit's
+compositor are imported directly as GPU textures (`EGLImage` in the GLES build,
+`VkImage` external-memory import in the Vulkan build) — no CPU copies, no
+intermediate buffers.
 
 <p align="center">
   <img alt="ImWebBrowser demo" src="docs/demo.gif" width="700">
@@ -26,16 +29,23 @@ idle nap instead of a hot render spin).
 
 ## Features
 
-- **Zero-copy rendering** — WebKit dmabuf frames become GL textures directly
+- **Two rendering backends** — OpenGL ES 3 (default) or Vulkan, selected at
+  CMake configure time. Both use the same zero-copy frame pipeline.
+- **Zero-copy rendering** — WebKit dmabuf frames become GPU textures directly
   (`frame path: dmabuf/EGLImage (zero-copy)`), shared-memory fallback included.
+- **Vulkan dma-buf import** (Vulkan build) — frames are imported as `VkImage`s
+  via `VK_EXT_external_memory_dma_buf` + DRM-format-modifier tiling; WPE's EGL
+  display is pinned to the same GPU as the Vulkan device by matching DRM
+  render-node minors.
 - **Present-on-demand** — the render loop only presents when a new web frame,
   input, stats or a 150 ms heartbeat requires it; between presents it naps,
   so idle CPU stays near zero without delaying frames or input.
 - **Deferred buffer retirement** — the buffer still bound to the texture is
   never recycled mid-present (`retireImage_` pipeline); eliminates striped
   corruption on fast-repainting pages and gives WebKit a deeper buffer queue.
-- **Direct kiosk path** — in kiosk mode ImGui is skipped entirely and a minimal
-  attribute-less fullscreen triangle blits the web texture.
+- **Direct kiosk path** — in kiosk mode the UI is skipped entirely: the GLES
+  build blits the web texture with a minimal attribute-less triangle, the
+  Vulkan build draws it as the sole image on ImGui's background draw list.
 - **Kiosk-safe lifecycle** — spurious WM close-requests are ignored in kiosk
   mode; DOM fullscreen enter/exit restores the launch mode.
 - **Smart URL bar** — typing `kernel.org`, `/path/file.html` or plain search
@@ -57,13 +67,14 @@ and tested against.
 | [WPE WebKit](https://wpewebkit.org) | `wpe-webkit-2.0` | **≥ 2.53.90** | The browser engine (`WPEBrowser::WebView`) |
 | [WPE Backend FDO](https://github.com/WebPlatformForEmbedded/WPEBackend-fdo) | `wpebackend-fdo-1.0` | 1.15.90 | EGLImage/dmabuf frame export protocol |
 | [libwpe](https://github.com/WebPlatformForEmbedded/libwpe) | `wpe-1.0` | 1.16.3 | Generic WPE backend API |
-| [SDL3](https://github.com/libsdl-org/SDL) | `sdl3` | 3.4.14 (any ≥ 3.2) | Windowing, input, GL context |
+| [SDL3](https://github.com/libsdl-org/SDL) | `sdl3` | 3.4.14 (any ≥ 3.2) | Windowing, input, GL/Vulkan platform |
 | libxkbcommon | `xkbcommon` | 1.6.0 | Keyboard mapping (Swedish layout etc.) |
 | wayland-server | `wayland-server` | 1.22.0 | Shared-memory frame fallback path |
-| EGL | `egl` | 1.5 | Headless EGL display for WebKit + app |
-| OpenGL ES | `glesv2` | 3.2 | Rendering (kernels blit + ImGui GLES3) |
+| EGL | `egl` | 1.5 | Headless EGL display for WebKit (both backends) |
+| OpenGL ES *(GLES build)* | `glesv2` | 3.2 | Rendering (blit + ImGui GLES3) |
+| Vulkan *(Vulkan build)* | `FindVulkan` / `libvulkan` + headers | loader 1.3.275 | Swapchain present + dma-buf import |
 | GLib | *(via WPE WebKit)* | 2.x | Main-loop integration |
-| [Dear ImGui](https://github.com/ocornut/imgui) | *vendored* | 1.9x | Toolbar/UI — included under `src/libraries/imgui` |
+| [Dear ImGui](https://github.com/ocornut/imgui) | *vendored* | 1.9x | Toolbar/UI — includes `imgui_impl_vulkan` with precompiled SPIR-V, so Vulkan builds need **no shader toolchain** |
 
 Toolchain: **CMake ≥ 3.22**, **pkg-config**, and a **C++20** compiler
 (GCC ≥ 11 or Clang ≥ 14).
@@ -74,6 +85,9 @@ Debian/Ubuntu package names (where available):
 sudo apt install cmake pkg-config g++ \
     libwpe-1.0-dev libwpebackend-fdo-1.0-dev libxkbcommon-dev \
     libwayland-dev libegl-dev libgles2-mesa-dev libglib2.0-dev
+
+# only for the Vulkan backend:
+sudo apt install libvulkan-dev
 ```
 
 > **SDL3** is not yet packaged for most distros — build it from source
@@ -91,22 +105,54 @@ sudo apt install cmake pkg-config g++ \
 | GStreamer core + base | `gstreamer1.0-tools gstreamer1.0-plugins-base` | Media framework WebKit links against |
 | GStreamer good/bad | `gstreamer1.0-plugins-good gstreamer1.0-plugins-bad` | Most audio/video codecs, v4l2, http srcs |
 | GStreamer ugly / libav | `gstreamer1.0-plugins-ugly gstreamer1.0-libav` | H.264, MP3 and other common codecs |
-| GPU driver with GLES 3 | `mesa-utils` (Mesa: `libgl1-mesa-dri`) | Zero-copy dmabuf import & blit |
+| GPU driver with GLES 3 *(GLES build)* | `mesa-utils` (Mesa: `libgl1-mesa-dri`) | Zero-copy dmabuf import & blit |
+| Vulkan driver + loader *(Vulkan build)* | `vulkan-tools` (Mesa: `mesa-vulkan-drivers`) | Swapchain present, dma-buf import |
 | Fonts | `fonts-dejavu-core fonts-liberation` | Page text rendering |
 | D-Bus accessibility (optional) | `at-spi2-core` | Silences WebKit a11y-bus warnings |
 
 Without GStreamer plugins pages still render, but `<audio>`/`<video>` will not
-play. Without a working GLES 3 driver the browser falls back to CPU-uploaded
-shared-memory frames (slower but functional).
+play. Without a working GLES 3 driver (GLES build) the browser falls back to
+CPU-uploaded shared-memory frames (slower but functional).
 
 ## Building
 
 ```bash
+# OpenGL ES 3 backend (default)
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
+
+# Vulkan backend
+cmake -B build-vk -DCMAKE_BUILD_TYPE=Release -DIMWB_BACKEND_VULKAN=ON
+cmake --build build-vk -j$(nproc)
 ```
 
+`-DIMWB_BACKEND_VULKAN=ON` automatically disables the OpenGL ES backend —
+exactly one backend is compiled in.
+
+### Choosing a backend
+
+| | OpenGL ES 3 | Vulkan |
+|---|---|---|
+| Web frame import | `EGLImage` bound to a GL texture | dma-buf → `VkImage` (`VK_EXT_external_memory_dma_buf`) |
+| Present path | `SDL_GL_SwapWindow`; kiosk uses an attribute-less blit triangle | swapchain via ImGui's Vulkan renderer (precompiled SPIR-V) |
+| Driver requirements | any GLES 3 / Mesa stack | mature Vulkan driver with `VK_EXT_image_drm_format_modifier` |
+
+> **Driver maturity matters for the Vulkan backend.** It was developed and
+> verified on Mesa NVK (Kepler). Older/immature drivers may advertise
+> `VK_EXT_image_drm_format_modifier` but crash or misrender tiled imports
+> (observed on Mesa "hasvk" for Haswell). Modern Intel (Skylake+/ANV), AMD
+> (RADV) and NVIDIA (515+) drivers are safe targets.
+
 ## CMake compile flags
+
+### Backend selection
+
+| Option | Default | Controls |
+|---|---|---|
+| `IMWB_BACKEND_OPENGL_ES` | ON | OpenGL ES 3 rendering context (SDL3 GL) |
+| `IMWB_BACKEND_VULKAN` | OFF | Vulkan swapchain present + dma-buf `VkImage` import; enabling it disables the GLES backend |
+
+### WebKit engine capabilities
 
 All engine capabilities map 1:1 onto WebKit settings and can be toggled at
 configure time. Defaults produce a full-featured browser.
@@ -144,7 +190,8 @@ same pages several times slower.
 ## Running
 
 ```bash
-./build/imwebbrowser [URL] [--kiosk] [--bench-fish N]
+./build/imwebbrowser [URL] [--kiosk] [--bench-fish N]      # OpenGL ES build
+./build-vk/imwebbrowser [URL] [--kiosk] [--bench-fish N]   # Vulkan build
 ```
 
 | Argument | Meaning |
@@ -173,7 +220,10 @@ same pages several times slower.
 | `IMWB_NOVSYNC` | Disable vsync (benchmarking, tearing possible) |
 | `IMWB_STATS` | Per-second `[stats]` line: fps, exports/s, present counts |
 | `IMWB_DEBUG_INPUT` | Verbose input logging: every forwarded button/motion/key event |
-| `IMWB_DUMP=1` | One-shot framebuffer dump to `/tmp/opencode/fb-dump.ppm` |
+| `IMWB_DUMP=1` | *(GLES build)* One-shot framebuffer dump to `/tmp/opencode/fb-dump.ppm` |
+| `IMWB_VKDUMP=1` | *(Vulkan build)* One-shot swapchain dump to `/tmp/opencode/vk-dump.ppm`, taken after the page has loaded |
+| `IMWB_VKLINEAR=1` | *(Vulkan build)* Diagnostic: import frames as stride-based linear instead of DRM-modifier tiling |
+| `IMWB_VKGREEN=1` | *(Vulkan build)* Diagnostic: paint a green backdrop under the web layer to check whether it draws |
 
 ## Architecture
 
@@ -184,19 +234,46 @@ SDL3 events ──► main.cpp (routing by geometry) ──► browser.cpp
                                             WPE WebKit (WebProcess)
                                                     │ dmabuf frames
                                                     ▼
-              browser.cpp updateWebTexture() ── EGLImage ──► GL texture
-                                                    ▼
-        kiosk: attribute-less blit triangle   or   ImGui UI + textured view
-                                                    ▼
-                                          SDL_GL_SwapWindow → afterPresent()
+              browser.cpp updateWebTexture()
+                    │
+        ┌───────────┴────────────┐
+        ▼ GLES build             ▼ Vulkan build
+  EGLImage → GL texture    eglExportDMABUFImageMESA → VkImage import
+        │                        │ (same GPU, pinned via DRM node)
+        ▼                        ▼
+  kiosk: blit triangle     ImGui background draw-list image
+  windowed: ImGui view           + toolbar / stats overlay
+        └───────────┬────────────┘
+                    ▼
+      SDL_GL_SwapWindow / vkQueuePresentKHR → afterPresent()
 ```
 
-- `src/main.cpp` — window/GL setup, event loop, geometry-routed input, kiosk
-  fast path, benchmark harness.
-- `src/browser.cpp/.hpp` — WPE WebKit embedding, zero-copy frame import, input
-  translation to `wpe_input_*`, navigation and load signals.
+- `src/main.cpp` — window/backend setup, event loop, geometry-routed input,
+  kiosk fast path, benchmark harness.
+- `src/browser.cpp/.hpp` — WPE WebKit embedding, zero-copy frame import
+  (GL texture binding or dma-buf export), input translation to `wpe_input_*`,
+  navigation and load signals.
+- `src/vk_backend.cpp/.hpp` — *(Vulkan build)* swapchain presentation and
+  external-memory dma-buf import (`VulkanPresent`).
 - `src/ui.cpp/.hpp` — Dear ImGui toolbar: URL bar, back/forward/reload,
   progress overlay, stats.
+
+### Vulkan backend notes (hard-won lessons)
+
+- **Same-GPU pinning**: WPE's EGL display is created with
+  `eglGetPlatformDisplayEXT(EGL_PLATFORM_DEVICE_EXT)` on the EGL device whose
+  DRM render-node minor matches the chosen `VkPhysicalDevice`
+  (`VK_EXT_physical_device_drm`). Without this, WebKit may allocate on one GPU
+  while the other tries to import — cross-vendor tiled imports crash or misrender.
+- **Handle type**: dma-buf fds must be imported as
+  `VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT`. Importing them as
+  `OPAQUE_FD` can succeed yet sample black.
+- **Buffer recycling**: WebKit recycles exported-image pointers; cached
+  dma-buf exports whose fds were already consumed by a previous import are
+  re-exported with fresh fds.
+- **Aspect**: single-plane formats address subresources via `COLOR`, even under
+  DRM-modifier tiling; `MEMORY_PLANE_*` aspects are only for multi-plane (YUV)
+  formats.
 
 ### Input notes (hard-won lessons)
 
