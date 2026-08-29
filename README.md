@@ -200,6 +200,22 @@ same pages several times slower.
 | `--kiosk` | Fullscreen direct-blit mode without toolbar/UI. |
 | `--bench-fish N` | Auto-start the WebGL Aquarium benchmark with N fish. |
 
+### Development PC: run inside a nested Weston
+
+WPE renders through a Wayland compositor, so on an X11 desktop the app cannot
+open a window directly. `run-native.sh` builds the GLES binary into
+`build-native/` and brings up a nested Weston (x11-backend) window that is
+torn down again when the browser exits:
+
+```bash
+./run-native.sh                                # build (if needed) + run, default page
+./run-native.sh https://example.com            # any URL (or --kiosk, --bench-fish N)
+./run-native.sh --rebuild                      # force a fresh GLES build
+```
+
+Inside an existing Wayland session (e.g. the Weston desktop from the Yocto
+image) the script skips Weston and launches the browser directly.
+
 ## Keyboard
 
 | Key | Action |
