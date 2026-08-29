@@ -9,7 +9,7 @@
 #
 # Usage:
 #   ./run-native.sh                          # build (if needed) and run
-#   ./run-native.sh --rebuild                # force a fresh GLES build
+#   ./run-native.sh --rebuild                # force a fresh GLES rebuild
 #   ./run-native.sh https://example.com      # pass a URL (or --kiosk etc.)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -25,13 +25,17 @@ for arg in "$@"; do
 done
 
 # ---------------------------------------------------------------------------
-# 1. Build the natively-running GLES binary if it is missing or requested.
+# 1. Build the natively-running GLES binary. Always configures at least once
+#    and lets cmake rebuild incrementally, so editing the sources is enough —
+#    ./run-native.sh always compiles the latest code. --rebuild forces a
+#    fresh configure as well.
 # ---------------------------------------------------------------------------
-if [ "$REBUILD" = 1 ] || [ ! -x "$BUILD_DIR/imwebbrowser" ]; then
-    echo "==> Building (GLES backend) into $BUILD_DIR ..."
+if [ "$REBUILD" = 1 ] || [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
+    echo "==> Configuring (GLES backend) into $BUILD_DIR ..."
     cmake -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DIMWB_BACKEND_OPENGL_ES=ON
-    cmake --build "$BUILD_DIR" -j"$(nproc)"
 fi
+echo "==> Building into $BUILD_DIR ..."
+cmake --build "$BUILD_DIR" -j"$(nproc)"
 
 # ---------------------------------------------------------------------------
 # 2. Find a usable Wayland display, or start a nested Weston.

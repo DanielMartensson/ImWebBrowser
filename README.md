@@ -210,8 +210,12 @@ torn down again when the browser exits:
 ```bash
 ./run-native.sh                                # build (if needed) + run, default page
 ./run-native.sh https://example.com            # any URL (or --kiosk, --bench-fish N)
-./run-native.sh --rebuild                      # force a fresh GLES build
+./run-native.sh --rebuild                      # force a fresh configure + rebuild
 ```
+
+The script always rebuilds the sources incrementally before launching, so
+after editing `src/` you can simply re-run it — it compiles nothing when
+nothing changed.
 
 Inside an existing Wayland session (e.g. the Weston desktop from the Yocto
 image) the script skips Weston and launches the browser directly. On an X11
