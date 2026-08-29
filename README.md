@@ -65,7 +65,7 @@ and tested against.
 | Dependency | pkg-config name | Tested version | Why |
 |---|---|---|---|
 | [WPE WebKit](https://wpewebkit.org) | `wpe-webkit-2.0` | **≥ 2.53.90** | The browser engine (`WPEBrowser::WebView`) |
-| [WPE Backend FDO](https://github.com/WebPlatformForEmbedded/WPEBackend-fdo) | `wpebackend-fdo-1.0` | 1.15.90 | EGLImage/dmabuf frame export protocol |
+| [WPE Backend FDO](https://github.com/Igalia/WPEBackend-fdo) | `wpebackend-fdo-1.0` | 1.16.1 | EGLImage/dmabuf frame export protocol |
 | [libwpe](https://github.com/WebPlatformForEmbedded/libwpe) | `wpe-1.0` | 1.16.3 | Generic WPE backend API |
 | [SDL3](https://github.com/libsdl-org/SDL) | `sdl3` | 3.4.14 (any ≥ 3.2) | Windowing, input, GL/Vulkan platform |
 | libxkbcommon | `xkbcommon` | 1.6.0 | Keyboard mapping (Swedish layout etc.) |
@@ -74,7 +74,7 @@ and tested against.
 | OpenGL ES *(GLES build)* | `glesv2` | 3.2 | Rendering (blit + ImGui GLES3) |
 | Vulkan *(Vulkan build)* | `FindVulkan` / `libvulkan` + headers | loader 1.3.275 | Swapchain present + dma-buf import |
 | GLib | *(via WPE WebKit)* | 2.x | Main-loop integration |
-| [Dear ImGui](https://github.com/ocornut/imgui) | *vendored* | 1.9x | Toolbar/UI — includes `imgui_impl_vulkan` with precompiled SPIR-V, so Vulkan builds need **no shader toolchain** |
+| [Dear ImGui](https://github.com/ocornut/imgui) | *vendored* | 1.92.9b | Toolbar/UI — includes `imgui_impl_vulkan` with precompiled SPIR-V, so Vulkan builds need **no shader toolchain** |
 
 Toolchain: **CMake ≥ 3.22**, **pkg-config**, and a **C++20** compiler
 (GCC ≥ 11 or Clang ≥ 14).
