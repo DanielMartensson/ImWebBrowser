@@ -214,7 +214,10 @@ torn down again when the browser exits:
 ```
 
 Inside an existing Wayland session (e.g. the Weston desktop from the Yocto
-image) the script skips Weston and launches the browser directly.
+image) the script skips Weston and launches the browser directly. On an X11
+desktop the script needs one extra runtime package over the build
+dependencies: `weston` (`sudo apt install weston`). Nothing extra is needed on
+the target board.
 
 ## Keyboard
 
