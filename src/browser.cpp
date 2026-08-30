@@ -164,6 +164,13 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
     view_ = webkit_web_view_new(wkBackend);
     g_object_ref_sink(view_);
 
+    // NVIDIA's login CDN serves stale HTML while it rolls out new builds; the
+    // old runtime then imports chunk files that were emptied by the deploy and
+    // the OAuth SPA aborts before mounting the form. Never re-serve HTML from
+    // the disk cache so every session/attempt lands on what the origin says.
+    webkit_web_context_set_cache_model(webkit_web_context_get_default(),
+                                       WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
+
     wpe_view_backend_add_activity_state(backend_,
                                         wpe_view_activity_state_visible | wpe_view_activity_state_focused |
                                             wpe_view_activity_state_in_window);
@@ -350,11 +357,21 @@ constexpr const char* kLogProbe = R"JSX((function(){
   var cke='?', ckl='?', ls=0;
   try { cke = navigator.cookieEnabled ? 'y' : 'n'; ckl = document.cookie ? document.cookie.length : 0; } catch(e){}
   try { ls = window.localStorage ? window.localStorage.length : -2; } catch(e){ ls = -1; }
+  var ch=[];
+  try { [].forEach.call(document.querySelectorAll('script[src]'), function(s){ var m=/chunk-[A-Za-z0-9]+\.js/.exec(s.src); if(m) ch.push(m[0]); }); } catch(e){}
+  try { var im=document.querySelector('link[rel="importmap"]'); if(im && im.textContent) ch.push.apply(ch, im.textContent.match(/chunk-[A-Za-z0-9]+\.js/g)||[]); } catch(e){}
+  var chs=ch.filter(function(v,i,a){return a.indexOf(v)==i;}).join(',');
+  var sr=[];
+  try { [].forEach.call(document.querySelectorAll('script[src],link[rel="modulepreload"]'), function(n){ var u=n.src||n.href; if(u) sr.push(u.replace(/^.*\//,'')); }); } catch(e){}
+  sr=sr.slice(0,10);
   return 'LOG<<\n'+s+'\n>>LOG bodyChars='+(document.body?document.body.innerText.length:-1)
+    +' txt=['+bodyTxt+']'
     +' bodyKids='+bodyKids
     +' idAppKids='+(app?app.childElementCount:'no-app')
     +' res='+resNum
     +' cke='+cke+' ckl='+ckl+' ls='+ls
+    +' chunks=['+chs+']'
+    +' scripts=['+sr.join(',')+']'
     +' loc='+location.href
     +' ready='+document.readyState+' title='+document.title+' | '+bodyTxt;
 })())JSX";
@@ -364,7 +381,11 @@ constexpr const char* kCaptureScript = R"JSX((function(){
   window.__imwbLog = [];
   var lvl = ['log','info','warn','error','debug'];
   function make(n){ return function(){ var a=Array.prototype.map.call(arguments,function(x){
-      try{ return (typeof x==='string')?x:JSON.stringify(x); }catch(e){ return String(x); } }).join(' ');
+      try {
+        if (x instanceof Error || (x && (x.message!==undefined || typeof x.stack==='string')))
+          return '['+(x.name||'Error')+'] '+(x.message||'')+' @ '+(x.stack?String(x.stack).split('\n').slice(0,3).join(' | '):'');
+        return (typeof x==='string')?x:JSON.stringify(x);
+      } catch(e){ return String(x); } }).join(' ');
     window.__imwbLog.push(n+': '+a); }; }
   lvl.forEach(function(n){ try{ console[n]=make(n); }catch(e){} });
   try {
@@ -407,27 +428,93 @@ constexpr const char* kCaptureScript = R"JSX((function(){
     };
   } catch(e){ window.__imwbLog.push('NETWRAP_ERR:'+String(e)); }
   window.addEventListener('error', function(e){ window.__imwbLog.push('UNCAUGHT: '+(e.message||'?')+' @ '+(e.filename||'')+':'+(e.lineno||'?')); });
+  (function(){
+    var c = document.currentScript ? document.currentScript.getAttribute('data-src') : '';
+    if (!c) return;
+    window.__imwbLog.push('CURSRC:'+(c||'').slice(0,160));
+  })();
   window.addEventListener('unhandledrejection', function(e){ var r=e.reason;
-    window.__imwbLog.push('REJECTION: '+(r?(r.message?r.message:String(r)):'?')); });
-})();)JSX";
+window.__imwbLog.push('REJECTION: '+(r?(r.message?r.message:String(r)):'?')); });
+})())JSX";
 }
+
+// On the NVIDIA login page the OAuth SPA lazily imports a chunk whose module
+// load failed with a MIME type error. Ask the page what it truly receives for
+// that chunk (fresh bypass + default cache) to see content-type and length.
+constexpr const char* kChunkProbe = R"JSX((function(){
+  if (window.__imwbChunkDone) return '';
+  if (!/login\.nvgs\.nvidia\.com/.test(location.host)) return '';
+  window.__imwbChunkDone = true;
+  var log = window.__imwbLog;
+  var failed = [];
+  ['UC7ZX2T5','WQKKENAX','3QP5QXBT'].forEach(function(tag){
+    var u = 'chunk-'+tag+'.js';
+    var c = new AbortController();
+    var t = setTimeout(function(){ c.abort(); log.push('CHUNK_TIMEOUT '+tag); }, 8000);
+    fetch(u, {cache:'no-store', signal:c.signal}).then(function(r){
+      clearTimeout(t);
+      log.push('CHUNK ' + tag + ': status=' + r.status + ' ct="' + (r.headers.get('content-type')||'none') + '" len=' + r.status+'' );
+      return r.text().then(function(tx){ log.push('CHUNK_BODY ' + tag + '=' + tx.length); });
+    }).catch(function(e){ clearTimeout(t); log.push('CHUNK_ERR ' + tag + ': ' + e); });
+  });
+  return '';
+})())JSX";
 
 // Automatically click the GFN "Log In" / "Sign in" control once we are on the
 // real Play app (body populated), then let the following LOG snapshots watch
 // the login flow (login.nvgs.nvidia.com) from inside the same session.
 constexpr const char* kLoginClickProbe = R"JSX((function(){
-  if (window.__imwbClicked || !/geforcenow\.com/.test(location.host)) return '';
+  if (!/geforcenow\.com/.test(location.host)) return '';
   if (!document.body || !document.body.childElementCount) return '';
+  try {
+    if (localStorage.imwbBounceTs && Date.now() - (+localStorage.imwbBounceTs) < 90000)
+      return ''; // damp: wait 90s after a login-stall bounce before auto-clicking again
+  } catch(e){}
   var els = [].slice.call(document.querySelectorAll('button,a,[role="button"],[role="link"]'));
   var b = els.filter(function(e){
     var t = (e.textContent||'').replace(/\s+/g,' ');
     return /log in|sign in|logga in|sign on/i.test(t) && t.length < 40;
   })[0];
-  if (!b) return '';
-  window.__imwbClicked = true;
-  window.__imwbLog.push('IMWB_CLICKED_LOGIN');
-  b.click();
-  return 'clicked:'+b.textContent.trim();
+  if (b && !window.__imwbLoginClicked) {
+    window.__imwbLoginClicked = true;
+    window.__imwbLog.push('IMWB_CLICKED_LOGIN');
+    b.click();
+    return 'clicked-login:'+b.textContent.trim();
+  }
+  var g = els.filter(function(e){
+    var t = (e.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+    return (t === 'get in' || t === 'get in now' || /^get in\b/.test(t)) && t.length < 25;
+  })[0];
+  if (g && !window.__imwbGetinClicked) {
+    window.__imwbGetinClicked = true;
+    window.__imwbLog.push('IMWB_CLICKED_GETIN');
+    g.click();
+    return 'clicked-getin:'+g.textContent.trim();
+  }
+  return '';
+})())JSX";
+
+// NVIDIA's login portal was observed shipping builds whose static JS imports
+// chunk-* files that its own CDN serves as 0-byte (emptied during rolling
+// deploys). The SPA then catches the module-load TypeError, logs ERROR {} and
+// never mounts the sign-in form. We cannot conjure the missing code, but
+// restarting the flow into the app picks up the next deploy generation; bound
+// it so a persistently broken portal cannot loop forever.
+constexpr const char* kStallProbe = R"JSX((function(){
+  if (!/login\.nvgs\.nvidia\.com/.test(location.host)) return '';
+  if (!document.body || document.body.innerText.length > 250) return '';
+  var bad = (window.__imwbLog||[]).filter(function(l){ return l.indexOf('error: ERROR')===0; }).length > 0;
+  if (!bad) return '';
+  var r = (window.__imwbStallCount||0);
+  if (r < 2) {
+    window.__imwbStallCount = r + 1;
+    try { localStorage.setItem('imwbBounceTs', String(Date.now())); } catch(e){}
+    window.__imwbLog.push('IMWB_BOUNCE_STALL->mall shot '+(r+1));
+    location.href = 'https://play.geforcenow.com/mall/';
+    return 'bounce';
+  }
+  window.__imwbLog.push('IMWB_STALL_TWICE_STOPPED');
+  return 'stopped';
 })())JSX";
 
 // Delayed snapshot: the SPA splash keeps bootstrapping after LOAD_FINISHED;
@@ -440,6 +527,12 @@ static gboolean onDelayedProbe(gpointer userData)
                                         nullptr, nullptr, nullptr,
                                         onProbeFinished, view);
     webkit_web_view_evaluate_javascript(view, kLogProbe, -1,
+                                        nullptr, nullptr, nullptr,
+                                        onProbeFinished, view);
+    webkit_web_view_evaluate_javascript(view, kChunkProbe, -1,
+                                        nullptr, nullptr, nullptr,
+                                        onProbeFinished, view);
+    webkit_web_view_evaluate_javascript(view, kStallProbe, -1,
                                         nullptr, nullptr, nullptr,
                                         onProbeFinished, view);
     return (++shots < 20) ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
