@@ -21,6 +21,11 @@
 
 static Browser* selfOf(void* data) { return static_cast<Browser*>(data); }
 
+// MITM debugging hook (IMWB_MITM_ACCEPT=1): send all traffic through a local
+// logging/TLS-intercepting proxy so we can see exactly what requests the WPE
+// network stack issues and replay/fix responses (see mitm_proxy.py).
+static constexpr const char* kMitmProxyUri = "http://127.0.0.1:4843";
+
 void onExportEglImage(void* data, wpe_fdo_egl_exported_image* image)
 {
     auto& self = *selfOf(data);
@@ -170,6 +175,22 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
     // the disk cache so every session/attempt lands on what the origin says.
     webkit_web_context_set_cache_model(webkit_web_context_get_default(),
                                        WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
+
+    // MITM debugging hook: route every request through our logging proxy on
+    // localhost and whitelist the proxy certificate when the engine complains
+    // about it (see onLoadFailedTls). Enabled only with IMWB_MITM_ACCEPT=1.
+    if (g_getenv("IMWB_MITM_ACCEPT")) {
+        auto* session = webkit_web_view_get_network_session(view_);
+        if (session) {
+            webkit_network_session_set_tls_errors_policy(
+                session, WEBKIT_TLS_ERRORS_POLICY_IGNORE);
+            auto* settings = webkit_network_proxy_settings_new(
+                kMitmProxyUri, nullptr);
+            webkit_network_session_set_proxy_settings(
+                session, WEBKIT_NETWORK_PROXY_MODE_CUSTOM, settings);
+            webkit_network_proxy_settings_free(settings);
+        }
+    }
 
     wpe_view_backend_add_activity_state(backend_,
                                         wpe_view_activity_state_visible | wpe_view_activity_state_focused |
@@ -446,17 +467,30 @@ constexpr const char* kChunkProbe = R"JSX((function(){
   if (!/login\.nvgs\.nvidia\.com/.test(location.host)) return '';
   window.__imwbChunkDone = true;
   var log = window.__imwbLog;
-  var failed = [];
-  ['UC7ZX2T5','WQKKENAX','3QP5QXBT'].forEach(function(tag){
-    var u = 'chunk-'+tag+'.js';
-    var c = new AbortController();
-    var t = setTimeout(function(){ c.abort(); log.push('CHUNK_TIMEOUT '+tag); }, 8000);
-    fetch(u, {cache:'no-store', signal:c.signal}).then(function(r){
-      clearTimeout(t);
-      log.push('CHUNK ' + tag + ': status=' + r.status + ' ct="' + (r.headers.get('content-type')||'none') + '" len=' + r.status+'' );
-      return r.text().then(function(tx){ log.push('CHUNK_BODY ' + tag + '=' + tx.length); });
-    }).catch(function(e){ clearTimeout(t); log.push('CHUNK_ERR ' + tag + ': ' + e); });
+  ['UC7ZX2T5','WQKKENAX','3QP5QXBT','main-ZLCCIJKG'].forEach(function(f){
+    var u = f.indexOf('main')===0 ? f : 'chunk-'+f+'.js';
+    var settled = false;
+    var t = setTimeout(function(){
+      if (!settled) { settled = true; log.push('CHUNK_PENDING_30s ' + f); }
+    }, 30000);
+    fetch(u).then(function(r){
+      settled = true; clearTimeout(t);
+      log.push('CHUNK ' + f + ': status=' + r.status + ' ct="' + (r.headers.get('content-type')||'none') + '"');
+      return r.text().then(function(tx){ log.push('CHUNK_BODY ' + f + '=' + tx.length); });
+    }).catch(function(e){ settled = true; clearTimeout(t); log.push('CHUNK_ERR ' + f + ': ' + e); });
   });
+  setTimeout(function(){
+    try {
+      (performance.getEntriesByType('resource')||[]).forEach(function(p){
+        var pend = (p.duration===0)?'PEND':(p.responseEnd-p.startTime>=3000?'SLOW':'ok');
+        if (/login\.nvgs|chunk-|main-|\.json|environment|styles|\.css/.test(p.name) || p.transferSize===0)
+          log.push('PERF ' + p.name.split('/').pop().slice(0,70) + ' ' + pend
+            + ' dur=' + Math.round(p.duration) + 'ms ts=' + Math.round(p.startTime)
+            + 'ms size=' + p.transferSize + ' enc=' + p.encodedBodySize + ' redir=' + Math.round(p.redirectStart));
+      });
+    } catch(e){ log.push('PERF_ERR ' + e); }
+    log.push('PERF_DONE');
+  }, 20000);
   return '';
 })())JSX";
 
@@ -517,6 +551,43 @@ constexpr const char* kStallProbe = R"JSX((function(){
   return 'stopped';
 })())JSX";
 
+// static-login.nvidia.com footer links: the anchors pick _self when the page
+// deems itself "standalone". When clicks seem dead there, log display-mode,
+// each footer link's rect, what elementFromPoint() sees at its center, and
+// every pointerdown/click so we can prove who eats the click (if anyone).
+constexpr const char* kLinkProbe = R"JSX((function(){
+  if (!/static-login\.nvidia\.com/.test(location.host)) return '';
+  var L = window.__imwbLog;
+  if (L) {
+    L.push('DMODES: standalone=' + String(window.navigator.standalone)
+      + ' display=' + (window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'not-standalone')
+      + ' vh=' + window.innerHeight + ' sy=' + window.scrollY + ' dpr=' + window.devicePixelRatio);
+  }
+  if (window.__imwbLinkProbe || !document.querySelectorAll('.footer-links a').length) return '';
+  window.__imwbLinkProbe = true;
+  [].slice.call(document.querySelectorAll('.footer-links a')).forEach(function(a){
+    var r = a.getBoundingClientRect();
+    var hit = document.elementFromPoint(r.left + r.width/2, r.top + r.height/2);
+    L.push('LINK: "' + (a.textContent||'').trim().slice(0,30) + '" href=' + a.getAttribute('href')
+      + ' target=' + a.target + ' rect=' + Math.round(r.left)+','+Math.round(r.top)+','+Math.round(r.width)+','+Math.round(r.height)
+      + ' hit=' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'null'));
+  });
+  document.addEventListener('pointerdown', function(e){
+    var t = e.target || e.srcElement;
+    L.push('PTRD: ' + (t&&t.tagName) + '.' + (t&&t.className ? String(t.className).split(' ')[0] : '') + ' x=' + Math.round(e.clientX) + ' y=' + Math.round(e.clientY));
+  }, true);
+  document.addEventListener('click', function(e){
+    var t = e.target || e.srcElement;
+    L.push('CLK: ' + (t&&t.tagName) + ' href=' + (t&&t.getAttribute ? t.getAttribute('href') : '') + ' prevented=' + e.defaultPrevented);
+  }, true);
+  setTimeout(function(){
+    var a = document.querySelectorAll('.footer-links a')[2];
+    if (a) { L.push('PROG_CLICK pulling ' + a.getAttribute('href')); a.click(); }
+    else L.push('PROG_CLICK no-anchor');
+  }, 2500);
+  return '';
+})())JSX";
+
 // Delayed snapshot: the SPA splash keeps bootstrapping after LOAD_FINISHED;
 // re-ask every 30s for the captured console + final page state.
 static gboolean onDelayedProbe(gpointer userData)
@@ -535,6 +606,9 @@ static gboolean onDelayedProbe(gpointer userData)
     webkit_web_view_evaluate_javascript(view, kStallProbe, -1,
                                         nullptr, nullptr, nullptr,
                                         onProbeFinished, view);
+    webkit_web_view_evaluate_javascript(view, kLinkProbe, -1,
+                                        nullptr, nullptr, nullptr,
+                                        onProbeFinished, view);
     return (++shots < 20) ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
 }
 
@@ -542,9 +616,31 @@ static gboolean onDelayedProbe(gpointer userData)
 // user-agent gating. With IMWB_PROBE set, inject a console/error capture into
 // the page (WPE WebKit has no console-message signal) and snapshots the state
 // after each finished load plus one delayed pass to catch the SPA failing late.
+// With IMWB_PROBE, dump every network resource the engine starts loading so we
+// can see exactly which script bundle (main-*/chunk-*) is fetched and what the
+// server answers for it (status/content-length/mime).
+static void onResourceLoadStarted(WebKitWebView*, WebKitWebResource* res, gpointer)
+{
+    const char* uri = webkit_web_resource_get_uri(res);
+    if (!uri || !g_strstr_len(uri, -1, ".js"))
+        return;
+    GString* s = g_string_new("[res] ");
+    g_string_append(s, uri);
+    if (auto* r = webkit_web_resource_get_response(res)) {
+g_string_append_printf(s, " -> status=%u len=%" G_GUINT64_FORMAT " mime=%s",
+                webkit_uri_response_get_status_code(r),
+                webkit_uri_response_get_content_length(r),
+                webkit_uri_response_get_mime_type(r));
+    }
+    g_printerr("%s\n", s->str);
+    g_string_free(s, TRUE);
+}
+
 static void maybeEnableProbe(WebKitWebView* view, Browser*)
 {
     if (g_getenv("IMWB_PROBE")) {
+        g_signal_connect(view, "resource-load-started",
+                         G_CALLBACK(onResourceLoadStarted), nullptr);
         auto* ucm = webkit_web_view_get_user_content_manager(view);
         auto* script = webkit_user_script_new(kCaptureScript,
             WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
@@ -620,9 +716,21 @@ gboolean onLoadFailed(WebKitWebView*, WebKitLoadEvent, const char* failingUri, G
     return TRUE;
 }
 
-static void onLoadFailedTls(WebKitWebView*, const char* host, GTlsCertificate*, GTlsCertificateFlags flags, Browser*)
+static void onLoadFailedTls(WebKitWebView* view, const char* host, GTlsCertificate* cert, GTlsCertificateFlags flags, Browser*)
 {
+    (void)view;
     g_warning("TLS certificate error for '%s': flags 0x%x (certificate not accepted)", host, unsigned(flags));
+    if (!g_getenv("IMWB_MITM_ACCEPT"))
+        return;
+    if (!cert) {
+        g_warning("  (no certificate available to whitelist)");
+        return;
+    }
+    auto* session = webkit_web_view_get_network_session(view);
+    if (!session)
+        session = webkit_network_session_get_default();
+    webkit_network_session_allow_tls_certificate_for_host(session, cert, host);
+    g_warning("  whitelisted MITM certificate for '%s'", host);
 }
 
 struct ProcessRestart {
@@ -661,6 +769,23 @@ static void onCloseRequest(WebKitWebView*, Browser* self)
     self->alive = false;
 }
 
+// WPE runs a single web view. Any "open in a new window/tab" request
+// (target=_blank links, window.open) must land in the current view instead;
+// otherwise a freshly-created WebKit view would have no surface to draw to
+// and the navigation would be dropped. We swallow the new view and navigate
+// the existing one (keeps the URL bar/history consistent).
+static WebKitWebView* onCreateWindow(WebKitWebView*, WebKitNavigationAction* nav, Browser* self)
+{
+    const char* uri = nullptr;
+    if (auto* req = webkit_navigation_action_get_request(nav))
+        uri = webkit_uri_request_get_uri(req);
+    if (uri && *uri) {
+        g_message("[nav] new-window request -> same view: %s", uri);
+        self->loadUrl(uri);
+    }
+    return nullptr;
+}
+
 void Browser::connectSignals()
 {
     g_signal_connect(view_, "notify::uri", G_CALLBACK(onNotifyUri), this);
@@ -671,6 +796,7 @@ void Browser::connectSignals()
     g_signal_connect(view_, "load-failed-with-tls-errors", G_CALLBACK(onLoadFailedTls), this);
     g_signal_connect(view_, "web-process-terminated", G_CALLBACK(onWebProcessTerminated), this);
     g_signal_connect(view_, "close", G_CALLBACK(onCloseRequest), this);
+    g_signal_connect(view_, "create", G_CALLBACK(onCreateWindow), this);
 
     maybeEnableProbe(view_, this);
 }
