@@ -6,6 +6,7 @@
 #include <imgui_internal.h>  // ClearActiveID
 
 #include <cstdio>
+#include <cstring>
 
 namespace ui {
 
@@ -51,18 +52,19 @@ Action drawToolbar(Browser& b, bool kiosk)
     const float urlWidth = ImGui::GetContentRegionAvail().x - kProgressWidth - ImGui::GetStyle().ItemSpacing.x;
     ImGui::SameLine();
     ImGui::SetNextItemWidth(urlWidth);
-    // Clicking into the bar (or Ctrl+L) clears the old URL so whatever the
-    // user types becomes the whole new address instead of being appended.
-    // (ImGui's AutoSelectAll is unreliable here: a mouse click re-positions
-    // the caret via stb_textedit_click and drops the selection.)
+    // Focusing the bar (mouse click or Ctrl+L) keeps the current text intact
+    // so it stays visible while editing; the user can select/delete it as
+    // needed. (ImGui's AutoSelectAll is unreliable for a mouse click here:
+    // the click re-positions the caret via stb_textedit_click and drops the
+    // selection.)
     const ImVec2 urlPos = ImGui::GetCursorScreenPos();
     const bool clickIntoBar =
         !b.urlEditing && ImGui::IsWindowHovered() &&
         ImGui::IsMouseHoveringRect(urlPos, ImVec2(urlPos.x + urlWidth, urlPos.y + ImGui::GetFrameHeight())) &&
         ImGui::IsMouseClicked(0);
-    if (clickIntoBar || b.focusUrlRequest)
-        b.urlBuf[0] = '\0';
-    if (b.focusUrlRequest) {
+    if (clickIntoBar)
+        ImGui::SetKeyboardFocusHere();
+    else if (b.focusUrlRequest) {
         ImGui::SetKeyboardFocusHere();
         b.focusUrlRequest = false;
     }
