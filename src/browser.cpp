@@ -223,6 +223,18 @@ void Browser::applySettings()
 {
     auto* s = webkit_web_view_get_settings(view_);
     (void)s;  // only touched when a feature option differs from the default
+    // Sites that gate on browser identity (GeForce Now, some DRM/streaming)
+    // reject WPE's default/mobile-ish UA; override via IMWB_USER_AGENT.
+    if (const char* ua = g_getenv("IMWB_USER_AGENT")) {
+        webkit_settings_set_user_agent(s, ua);
+        std::fprintf(stderr, "[ua] overriding user agent: %s\n", ua);
+    }
+    // GeForce Now etc. need RTCPeerConnection on window; it is runtime-gated
+    // and off unless enabled (page then dies at "Can't find variable:
+    // RTCPeerConnection" and never leaves its splash screen).
+    webkit_settings_set_enable_webrtc(s, true);
+    std::fprintf(stderr, "[webrtc] enable_webrtc now = %d\n",
+                 webkit_settings_get_enable_webrtc(s));
 #if ENABLE_JAVASCRIPT != 1
     webkit_settings_set_enable_javascript(s, ENABLE_JAVASCRIPT);
 #endif
@@ -310,7 +322,146 @@ void onNotifyTitle(WebKitWebView* view, GParamSpec*, Browser* self)
 #endif
 }
 
-static void onLoadChanged(WebKitWebView*, WebKitLoadEvent event, Browser* self)
+static void onProbeFinished(GObject*, GAsyncResult* res, gpointer userData)
+{
+    auto* view = WEBKIT_WEB_VIEW(userData);
+    auto* value = webkit_web_view_evaluate_javascript_finish(view, res, nullptr);
+    if (!value)
+        return;
+    char* txt = nullptr;
+    if (jsc_value_is_string(value))
+        txt = jsc_value_to_string(value);
+    if (txt) {
+        std::fprintf(stderr, "[probe] %s\n", txt);
+        g_free(txt);
+    }
+}
+
+namespace {
+constexpr const char* kLogProbe = R"JSX((function(){
+  var s='(no capture)';
+  try{ s = (window.__imwbLog&&window.__imwbLog.length) ? window.__imwbLog.slice(-50).join('\n') : '(window.__imwbLog missing)'; }
+  catch(e){ s='capture err'; }
+  var bodyTxt=document.body?document.body.innerText.replace(/\s+/g,' ').slice(0,100):'';
+  var bodyKids = document.body ? document.body.childElementCount : -1;
+  var app = document.getElementById('app');
+  var resNum = 0;
+  try { resNum = performance.getEntriesByType ? performance.getEntriesByType('resource').length : 0; } catch(e){}
+  return 'LOG<<\n'+s+'\n>>LOG bodyChars='+(document.body?document.body.innerText.length:-1)
+    +' bodyKids='+bodyKids
+    +' idAppKids='+(app?app.childElementCount:'no-app')
+    +' res='+resNum
+    +' loc='+location.href
+    +' ready='+document.readyState+' title='+document.title+' | '+bodyTxt;
+})())JSX";
+
+constexpr const char* kCaptureScript = R"JSX((function(){
+  if (window.__imwbLog) return;
+  window.__imwbLog = [];
+  var lvl = ['log','info','warn','error','debug'];
+  function make(n){ return function(){ var a=Array.prototype.map.call(arguments,function(x){
+      try{ return (typeof x==='string')?x:JSON.stringify(x); }catch(e){ return String(x); } }).join(' ');
+    window.__imwbLog.push(n+': '+a); }; }
+  lvl.forEach(function(n){ try{ console[n]=make(n); }catch(e){} });
+  try {
+    window.__realOpen = window.open;
+    window.open = function(url, name, features){
+      window.__imwbLog.push('OPEN:'+url+' name='+name);
+      var w = { closed:false, document:null, location:{href:String(url||'')}, onload:null,
+        focus:function(){}, blur:function(){}, close:function(){window.__imwbLog.push('OPEN_CLOSED')},
+        postMessage:function(){}, addEventListener:function(){}, removeEventListener:function(){} };
+      return w;
+    };
+  } catch(e){ window.__imwbLog.push('OPENWRAP_ERR:'+String(e)); }
+  window.addEventListener('error', function(e){ window.__imwbLog.push('UNCAUGHT: '+(e.message||'?')+' @ '+(e.filename||'')+':'+(e.lineno||'?')); });
+  window.addEventListener('unhandledrejection', function(e){ var r=e.reason;
+    window.__imwbLog.push('REJECTION: '+(r?(r.message?r.message:String(r)):'?')); });
+})();)JSX";
+}
+
+// Automatically click the GFN "Log In" / "Sign in" control once we are on the
+// real Play app (body populated), then let the following LOG snapshots watch
+// the login flow (login.nvgs.nvidia.com) from inside the same session.
+constexpr const char* kLoginClickProbe = R"JSX((function(){
+  if (window.__imwbClicked || !/geforcenow\.com/.test(location.host)) return '';
+  if (!document.body || !document.body.childElementCount) return '';
+  var els = [].slice.call(document.querySelectorAll('button,a,[role="button"],[role="link"]'));
+  var b = els.filter(function(e){
+    var t = (e.textContent||'').replace(/\s+/g,' ');
+    return /log in|sign in|logga in|sign on/i.test(t) && t.length < 40;
+  })[0];
+  if (!b) return '';
+  window.__imwbClicked = true;
+  window.__imwbLog.push('IMWB_CLICKED_LOGIN');
+  b.click();
+  return 'clicked:'+b.textContent.trim();
+})())JSX";
+
+// Delayed snapshot: the SPA splash keeps bootstrapping after LOAD_FINISHED;
+// re-ask every 30s for the captured console + final page state.
+static gboolean onDelayedProbe(gpointer userData)
+{
+    static unsigned shots = 0;
+    auto* view = static_cast<WebKitWebView*>(userData);
+    webkit_web_view_evaluate_javascript(view, kLoginClickProbe, -1,
+                                        nullptr, nullptr, nullptr,
+                                        onProbeFinished, view);
+    webkit_web_view_evaluate_javascript(view, kLogProbe, -1,
+                                        nullptr, nullptr, nullptr,
+                                        onProbeFinished, view);
+    return (++shots < 20) ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
+}
+
+// Site bootstrap failures ("splash then nothing") are usually WebGL or
+// user-agent gating. With IMWB_PROBE set, inject a console/error capture into
+// the page (WPE WebKit has no console-message signal) and snapshots the state
+// after each finished load plus one delayed pass to catch the SPA failing late.
+static void maybeEnableProbe(WebKitWebView* view, Browser*)
+{
+    if (g_getenv("IMWB_PROBE")) {
+        auto* ucm = webkit_web_view_get_user_content_manager(view);
+        auto* script = webkit_user_script_new(kCaptureScript,
+            WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+            WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
+            nullptr, nullptr);
+        webkit_user_content_manager_add_script(ucm, script);
+        webkit_user_script_unref(script);
+        g_timeout_add_seconds(30, onDelayedProbe, view);
+    }
+}
+
+static void maybeRunProbe(WebKitWebView* view)
+{
+    if (!g_getenv("IMWB_PROBE"))
+        return;
+    const char* probe =
+        "(function(){"
+        "  var c=document.createElement('canvas');"
+        "  var gl1=null, gl2=null;"
+        "  try{gl2=c.getContext('webgl2');}catch(e){}"
+        "  try{gl1=gl2||c.getContext('webgl')||c.getContext('experimental-webgl');}catch(e){}"
+        "  var v=document.querySelector('video');"
+        "  var cds='n/a';"
+        "  try{"
+        "    var capSrc=window.RTCRtpSender&&RTCRtpSender.getCapabilities"
+        "      ? RTCRtpSender : (window.RTCPeerConnection&&RTCPeerConnection.getCapabilities"
+        "        ? RTCPeerConnection : null);"
+        "    var caps=capSrc?capSrc.getCapabilities('video'):null;"
+        "    cds=(caps&&caps.codecs)?caps.codecs.map(function(x){"
+        "      return String(x.mimeType).split('/')[1]||'?'}).join(','):'none';"
+        "  }catch(e){cds='err';}"
+        "  return 'webgl2='+(gl2?'yes':'no')+' webgl1='+(gl1?'yes':'no')"
+        "    +' rtc='+(typeof window.RTCPeerConnection)"
+        "    +' wrtc='+(typeof window.webkitRTCPeerConnection)"
+        "    +' video='+(v?'yes':'no')+' readyState='+document.readyState"
+        "    +' codecs='+cds"
+        "    +' ua='+navigator.userAgent;"
+        "})()";
+    webkit_web_view_evaluate_javascript(view, probe, -1, nullptr, nullptr, nullptr,
+                                        onProbeFinished, view);
+}
+
+static void onLoadChanged(WebKitWebView* view, WebKitLoadEvent event, Browser* self)
 {
     switch (event) {
     case WEBKIT_LOAD_STARTED:
@@ -322,6 +473,7 @@ static void onLoadChanged(WebKitWebView*, WebKitLoadEvent event, Browser* self)
     case WEBKIT_LOAD_FINISHED:
         self->loading = false;
         self->progress = 1.f;
+        maybeRunProbe(view);
         break;
     default:
         break;
@@ -393,6 +545,8 @@ void Browser::connectSignals()
     g_signal_connect(view_, "load-failed-with-tls-errors", G_CALLBACK(onLoadFailedTls), this);
     g_signal_connect(view_, "web-process-terminated", G_CALLBACK(onWebProcessTerminated), this);
     g_signal_connect(view_, "close", G_CALLBACK(onCloseRequest), this);
+
+    maybeEnableProbe(view_, this);
 }
 
 // ---------------------------------------------------------------------------

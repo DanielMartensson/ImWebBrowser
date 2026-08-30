@@ -273,6 +273,7 @@ int main(int argc, char** argv)
 #endif
 
     bool showStats = false;
+    bool minimized = false;
     std::string lastTitle;
     bool hadEvents = false;
 
@@ -306,6 +307,27 @@ int main(int argc, char** argv)
             case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                 applyLayout();
+                break;
+
+            case SDL_EVENT_WINDOW_MINIMIZED:
+                // Pause presentation while hidden: swapping into a surface the
+                // compositor has hidden can leave the EGL state wedged after a
+                // quick minimize/restore cycle (observed with libdecor+weston).
+                if (g_getenv("IMWB_DEBUG_INPUT"))
+                    std::fprintf(stderr, "[input] MINIMIZED flags=0x%lx\n",
+                                 (unsigned long)SDL_GetWindowFlags(window));
+                minimized = true;
+                hadEvents = true;
+                break;
+
+            case SDL_EVENT_WINDOW_RESTORED:
+            case SDL_EVENT_WINDOW_SHOWN:
+                if (g_getenv("IMWB_DEBUG_INPUT"))
+                    std::fprintf(stderr, "[input] %s flags=0x%lx\n",
+                                 ev.type == SDL_EVENT_WINDOW_RESTORED ? "RESTORED" : "SHOWN",
+                                 (unsigned long)SDL_GetWindowFlags(window));
+                minimized = false;
+                hadEvents = true;  // repaint immediately on the way back
                 break;
 
             case SDL_EVENT_KEY_DOWN:
@@ -382,6 +404,14 @@ int main(int argc, char** argv)
         [[maybe_unused]] gint64 ts1 = stats ? g_get_monotonic_time() : 0;
         browser.updateWebTexture();
         [[maybe_unused]] gint64 ts2 = stats ? g_get_monotonic_time() : 0;
+
+        // Keep the page ticking while hidden (timers, network, exports) but
+        // never present into a surface the compositor is not displaying.
+        if (minimized) {
+            browser.pumpEvents();
+            SDL_Delay(10);
+            continue;
+        }
 
         // Present on demand, but never spin hot while waiting: a 2 ms nap
         // keeps idle CPU low without delaying frames or input noticeably.

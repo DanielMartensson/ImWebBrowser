@@ -97,10 +97,12 @@ void drawStatsOverlay(bool show, const Browser& b)
 
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(8, kToolbarHeight + 8), ImGuiCond_FirstUseEver);
-    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+    // Draggable via the slim title bar; no close/resize, no saved settings.
+    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize |
                                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav |
-                                       ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoMove;
-    ImGui::Begin("##stats", nullptr, flags);
+                                       ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar |
+                                       ImGuiWindowFlags_NoResize;
+    ImGui::Begin("Stats", nullptr, flags);
     ImGui::Text("loop fps   %6.1f", double(io.Framerate));
     ImGui::Text("frame time %6.2f ms", io.Framerate > 0 ? 1000.0 / double(io.Framerate) : 0.0);
     ImGui::Text("window     %d x %d", int(io.DisplaySize.x), int(io.DisplaySize.y));
