@@ -50,6 +50,9 @@ idle nap instead of a hot render spin).
   mode; DOM fullscreen enter/exit restores the launch mode.
 - **Smart URL bar** — typing `kernel.org`, `/path/file.html` or plain search
   text does the right thing; non-URLs go to DuckDuckGo.
+- **Single-view navigation** — `target=_blank` links and `window.open` are
+  routed into the existing web view (WebKit's "create" signal), since a second
+  view has no draw surface in this embedder.
 - **Correct pointer semantics** — WPE button numbers (1=left/2=right/3=middle)
   and held-button bitmasks, matching Cog's input translator.
 - Swedish keyboard layout support via system XKB keymap.
@@ -247,6 +250,8 @@ the target board.
 | `IMWB_VKDUMP=1` | *(Vulkan build)* One-shot swapchain dump to `/tmp/opencode/vk-dump.ppm`, taken after the page has loaded |
 | `IMWB_VKLINEAR=1` | *(Vulkan build)* Diagnostic: import frames as stride-based linear instead of DRM-modifier tiling |
 | `IMWB_VKGREEN=1` | *(Vulkan build)* Diagnostic: paint a green backdrop under the web layer to check whether it draws |
+| `IMWB_PROBE` | Network/scrolling diagnostics: js-injected probes on NVIDIA login/static-login pages, each `.js` resource logged with status/length, fetch-driven chunk and performance-entry checks |
+| `IMWB_MITM_ACCEPT=1` | Send all traffic through a debugging TLS MITM proxy (`http://127.0.0.1:4843`, see `mitm_proxy.py`), ignore TLS errors and whitelist the proxy certificate |
 
 ## Architecture
 
