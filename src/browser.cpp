@@ -347,10 +347,14 @@ constexpr const char* kLogProbe = R"JSX((function(){
   var app = document.getElementById('app');
   var resNum = 0;
   try { resNum = performance.getEntriesByType ? performance.getEntriesByType('resource').length : 0; } catch(e){}
+  var cke='?', ckl='?', ls=0;
+  try { cke = navigator.cookieEnabled ? 'y' : 'n'; ckl = document.cookie ? document.cookie.length : 0; } catch(e){}
+  try { ls = window.localStorage ? window.localStorage.length : -2; } catch(e){ ls = -1; }
   return 'LOG<<\n'+s+'\n>>LOG bodyChars='+(document.body?document.body.innerText.length:-1)
     +' bodyKids='+bodyKids
     +' idAppKids='+(app?app.childElementCount:'no-app')
     +' res='+resNum
+    +' cke='+cke+' ckl='+ckl+' ls='+ls
     +' loc='+location.href
     +' ready='+document.readyState+' title='+document.title+' | '+bodyTxt;
 })())JSX";
@@ -377,6 +381,31 @@ constexpr const char* kCaptureScript = R"JSX((function(){
       return w;
     };
   } catch(e){ window.__imwbLog.push('OPENWRAP_ERR:'+String(e)); }
+  try {
+    var _f = window.fetch;
+    window.fetch = function(){
+      var args = arguments;
+      return _f.apply(this, args).then(function(r){
+        if (r.status >= 400)
+          window.__imwbLog.push('FETCH_FAIL:'+String(r.url||'').slice(0,200)+' '+r.status);
+        return r;
+      }, function(e){
+        window.__imwbLog.push('FETCH_ERR:'+String(args[0]).slice(0,200));
+        throw e;
+      });
+    };
+    var _xo = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(m, u){ this.__imwbU = u; return _xo.apply(this, arguments); };
+    var _xs = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function(){
+      var self = this;
+      this.addEventListener('loadend', function(){
+        if (self.status >= 400)
+          window.__imwbLog.push('XHR_FAIL:'+String(self.__imwbU||'').slice(0,200)+' '+self.status);
+      });
+      return _xs.apply(this, arguments);
+    };
+  } catch(e){ window.__imwbLog.push('NETWRAP_ERR:'+String(e)); }
   window.addEventListener('error', function(e){ window.__imwbLog.push('UNCAUGHT: '+(e.message||'?')+' @ '+(e.filename||'')+':'+(e.lineno||'?')); });
   window.addEventListener('unhandledrejection', function(e){ var r=e.reason;
     window.__imwbLog.push('REJECTION: '+(r?(r.message?r.message:String(r)):'?')); });
