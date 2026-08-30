@@ -367,6 +367,10 @@ constexpr const char* kCaptureScript = R"JSX((function(){
     window.__realOpen = window.open;
     window.open = function(url, name, features){
       window.__imwbLog.push('OPEN:'+url+' name='+name);
+      var navName = String(name||'');
+      if (navName === '_self' || navName === '_top') {
+        try { window.location.href = url; } catch(e){ window.__imwbLog.push('NAV_ERR:'+String(e)); }
+      }
       var w = { closed:false, document:null, location:{href:String(url||'')}, onload:null,
         focus:function(){}, blur:function(){}, close:function(){window.__imwbLog.push('OPEN_CLOSED')},
         postMessage:function(){}, addEventListener:function(){}, removeEventListener:function(){} };
