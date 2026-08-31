@@ -246,6 +246,18 @@ footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);colo
      <span class="opt">gstreamer1.0-plugins-base</span><span class="opt">-good</span><span class="opt">-bad</span>
      <span class="opt">-ugly</span><span class="opt">gstreamer1.0-libav</span></p>
 
+  <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">WebRTC backend</h3>
+  <p style="color:var(--dim)"><span class="opt">ENABLE_WEBRTC<span class="def">=ON</span></span> only exposes
+     the <code>RTCPeerConnection</code> API to pages. <b>Which engine implements it is chosen when
+     WPE&nbsp;WebKit itself is built</b>, via its CMake flag <code>USE_GSTREAMER_WEBRTC</code>:
+     <b>ON</b> (WPE default) → <b>GstWebRTC</b> over GStreamer’s <code>webrtcbin</code>;
+     <b>OFF</b> → WPE’s bundled <b>libwebrtc</b> stack.</p>
+  <p style="color:var(--dim)">GstWebRTC needs the GStreamer <code>webrtc</code>/<code>rtp</code>/<code>sdp</code>
+     components (≥ 1.20) and OpenSSL ≥ 3.0 in the runtime image, plus <code>libnice</code> for ICE
+     transport (not to be confused with the unrelated <code>librice</code> build option). ImWebBrowser
+     runs GstWebRTC on both the Linux dev PC and the STM32MP257F target (built for Vulkan +
+     GStreamer hardware decode). Verify the live engine with <code>gst-inspect-1.0 webrtcbin</code>.</p>
+
   <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">Rendering backend</h3>
   <table>
     <tr><th>CMake option</th><th>Default</th><th>Effect</th></tr>

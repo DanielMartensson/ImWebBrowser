@@ -212,6 +212,18 @@ build option which this configuration does **not** use.
 > To confirm the running engine exposes GstWebRTC, from the target shell:
 > `gst-inspect-1.0 webrtcbin`.
 
+Reference platforms:
+
+- **Linux dev PC** — runs the same `USE_GSTREAMER_WEBRTC=ON` default, so WebRTC
+  rides GStreamer's `webrtcbin` here too (falling back to vanilla WebRTC is also
+  fine; the app makes no assumption about the engine). Video decode uses whatever
+  GStreamer ranks highest (typically software `avdec_h264` on a dev machine).
+- **STM32MP257F target** — built for Vulkan + GStreamer in the Watermelon-Wine
+  layer (recipes only) so the WebRTC media path can ride the hardware
+  (V4L2-stateless H.264 via `v4l2slh264dec`). Give the hardware decoder priority
+  before launch with `GST_PLUGIN_FEATURE_RANK="v4l2slh264dec:MAX"` so 1080p
+  streamed frames decode on the VPU instead of CPU.
+
 ## Running
 
 ```bash
