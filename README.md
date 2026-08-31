@@ -260,6 +260,15 @@ desktop the script needs one extra runtime package over the build
 dependencies: `weston` (`sudo apt install weston`). Nothing extra is needed on
 the target board.
 
+The launcher sets `SDL_VIDEO_WAYLAND_MODE_EMULATION=0` for the browser. Without
+it, SDL3 3.4.14 (as shipped in `/usr/local` on the dev PC) hits a divide-by-zero
+`SIGFPE` in `handle_wl_output_done()` while libdecor-gtk drains the
+`wl_output.done` queue from the nested Weston, crashing the app shortly after it
+maps — which also aborts `center_browser_window()` mid-drag so the window ends
+up only partially centred. Mode emulation is purely cosmetic here, so disabling
+it is a safe no-op that keeps the libdecor titlebar (so the window is still
+draggable by hand) while the window-centring runs to completion.
+
 ## Keyboard
 
 | Key | Action |
