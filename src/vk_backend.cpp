@@ -442,6 +442,7 @@ static bool importFrameInternal(VulkanPresent::Impl& d, const VkDmabufFrame& f, 
     VkMemoryAllocateInfo ai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
     ai.allocationSize = req.size;
     ai.pNext = &imp;
+    ai.memoryTypeIndex = UINT32_MAX;
     for (uint32_t t = 0; t < mp.memoryTypeCount && ai.memoryTypeIndex == UINT32_MAX; t++)
         if (req.memoryTypeBits & (1u << t))
             ai.memoryTypeIndex = t;
@@ -659,9 +660,10 @@ bool VulkanPresent::drawFrame(int width, int height)
     pi.pSwapchains = &D.swapchain;
     pi.pImageIndices = &idx;
     r = vkQueuePresentKHR(D.queue, &pi);
+    static const bool kDump = std::getenv("IMWB_VKDUMP") != nullptr;
     static int dbgFrames = 0;
     ++dbgFrames;
-    if ((r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) && std::getenv("IMWB_VKDUMP")) {
+    if ((r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) && kDump) {
         static bool dumped = false;
         if (!dumped && dbgFrames > 90) {  // let the page load first
             dumped = true;
