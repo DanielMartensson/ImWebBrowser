@@ -28,20 +28,27 @@ struct wpe_fdo_egl_exported_image;
 
 class Browser {
 public:
-    // ---- UI-facing state (kept current by WebKit signals) ----
     static constexpr int kUrlBufSize = 4096;
-    char urlBuf[kUrlBufSize] = "";   // URL bar text buffer
+
+    Browser() = default;
+    bool init(EGLDisplay eglDisplay, int width, int height, const char* startUrl);
+    void shutdown();
+
+    Browser(const Browser&) = delete;
+    Browser& operator=(const Browser&) = delete;
+    Browser(Browser&&) = delete;
+    Browser& operator=(Browser&&) = delete;
+
+    // ---- UI-facing state (kept current by WebKit signals) ----
+    char urlBuf[kUrlBufSize] = "";   // URL bar text buffer (C-string for ImGui::InputText)
     bool urlEditing = false;         // user is typing in the URL bar
     bool focusUrlRequest = false;    // one-shot: focus the URL bar (Ctrl+L)
     std::string title;               // current page title
-    float progress = 1.f;            // estimated load progress 0..1 (100% = idle/done)
+    float progress = 1.f;            // estimated load progress 0..1 (1 = idle/done)
     bool loading = false;
-    bool alive = true;               // set false when the browser should quit
+    bool alive = true;               // false => the browser should quit
 
     std::function<void(bool enter)> onDomFullscreen;  // page requests fullscreen
-
-    bool init(EGLDisplay eglDisplay, int width, int height, const char* startUrl);
-    void shutdown();
 
     // Viewport size in device pixels (excludes the toolbar area).
     void resize(int width, int height);

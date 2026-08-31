@@ -9,7 +9,7 @@
 #include <backends/imgui_impl_vulkan.h>
 #else
 #include <backends/imgui_impl_opengl3.h>
-#endif
+#endif  // IMWB_BACKEND_VULKAN
 #include <backends/imgui_impl_sdl3.h>
 #include <imgui.h>
 
@@ -32,7 +32,7 @@ struct Args {
     bool kiosk = false;
 #if ENABLE_BENCHMARK_HARNESS
     int benchFish = 0;
-#endif
+#endif  // ENABLE_BENCHMARK_HARNESS
 };
 
 Args parseArgs(int argc, char** argv)
@@ -44,7 +44,7 @@ Args parseArgs(int argc, char** argv)
 #if ENABLE_BENCHMARK_HARNESS
         else if (strcmp(argv[i], "--bench-fish") == 0 && i + 1 < argc)
             a.benchFish = atoi(argv[++i]);
-#endif
+#endif  // ENABLE_BENCHMARK_HARNESS
         else if (argv[i][0] != '-')
             a.url = argv[i];
     }
@@ -69,7 +69,7 @@ Args parseArgs(int argc, char** argv)
         }
         a.url = url.c_str();
     }
-#endif
+#endif  // ENABLE_BENCHMARK_HARNESS
     return a;
 }
 
@@ -94,7 +94,7 @@ int main(int argc, char** argv)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
-#endif
+#endif  // !IMWB_BACKEND_VULKAN
 
     int winW = 1280, winH = 800;
     if (const char* size = g_getenv("IMWB_WINDOW_SIZE")) {  // "WxH", for fair benchmarks
@@ -112,7 +112,7 @@ int main(int argc, char** argv)
 #else
     SDL_Window* window = SDL_CreateWindow("ImWebBrowser", winW, winH,
                                           SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
-#endif
+#endif  // IMWB_BACKEND_VULKAN
     if (!window) {
         std::fprintf(stderr, "error: window creation failed: %s\n", SDL_GetError());
         return 1;
@@ -152,7 +152,7 @@ int main(int argc, char** argv)
     ImGui::StyleColorsDark();
     ImGui_ImplSDL3_InitForOpenGL(window, gl);
     ImGui_ImplOpenGL3_Init("#version 300 es");
-#endif
+#endif  // IMWB_BACKEND_VULKAN
 
     // Minimal attribute-less fullscreen blit for the kiosk direct path: the
     // exported web frame goes straight to the window surface, no ImGui.
@@ -254,7 +254,7 @@ int main(int argc, char** argv)
     }
 #else
     eglDisplay = SDL_EGL_GetCurrentDisplay();
-#endif
+#endif  // IMWB_BACKEND_VULKAN
     if (!eglDisplay) {
         std::fprintf(stderr, "error: no current EGL display: %s\n", SDL_GetError());
         return 1;
@@ -278,10 +278,11 @@ int main(int argc, char** argv)
 #if ENABLE_BENCHMARK_HARNESS
     if (args.benchFish > 0)
         browser.startBenchmark(args.benchFish);
-#endif
+#endif  // ENABLE_BENCHMARK_HARNESS
 
     bool showStats = false;
     bool minimized = false;
+    bool pageMouseDown = false;  // a press that landed on the page (drag completion)
     std::string lastTitle;
     bool hadEvents = false;
 
@@ -297,7 +298,6 @@ int main(int argc, char** argv)
                              ev.type == SDL_EVENT_TEXT_INPUT ? "TEXT_INPUT" : "TEXT_EDITING",
                              ev.text.text);
             ImGui_ImplSDL3_ProcessEvent(&ev);
-            static bool pageMouseDown = false;
 
             switch (ev.type) {
             case SDL_EVENT_QUIT:
@@ -432,8 +432,21 @@ int main(int argc, char** argv)
         }
 
 #ifdef IMWB_BACKEND_VULKAN
-        // Vulkan build: both paths draw through ImGui's Vulkan renderer. In
-        // kiosk mode the web frame is the only thing on the background list.
+        // Kiosk direct path: draw the imported web frame straight to the
+        // window surface with a minimal fullscreen pipeline — no ImGui. This
+        // mirrors the GLES kiosk blit path below.
+        if (kiosk && !showStats) {
+            if (VkDmabufFrame* fr = browser.takeDmabufFrame())
+                vp.importFrame(*fr);
+            vp.drawFrameKiosk(pixW, pixH);
+            browser.afterPresent();
+            lastPresentUs = g_get_monotonic_time();
+            hadEvents = false;
+            continue;
+        }
+
+        // Windowed path: draw through ImGui's Vulkan renderer. In kiosk-with-
+        // stats the web frame is the only thing on the background list.
         ImTextureID webTex = ImTextureID(0);
         if (VkDmabufFrame* fr = browser.takeDmabufFrame())
             webTex = vp.importFrame(*fr);  // 0 on import failure
@@ -580,7 +593,7 @@ int main(int argc, char** argv)
                 t0 = now;
                 ms_pump = ms_update = ms_draw = ms_swap = 0;
             }
-#endif
+#endif  // !IMWB_BACKEND_VULKAN
         }
 
         if (browser.title != lastTitle) {  // keep the OS window title current
@@ -600,7 +613,7 @@ done:
 #else
     ImGui_ImplOpenGL3_Shutdown();
     SDL_GL_DestroyContext(gl);
-#endif
+#endif  // IMWB_BACKEND_VULKAN
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
     SDL_DestroyWindow(window);

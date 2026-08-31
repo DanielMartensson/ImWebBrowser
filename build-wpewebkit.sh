@@ -37,7 +37,10 @@ mkdir -p "$BUILD_DIR"
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$PREFIX"
 
-ninja -C "$BUILD_DIR" -j1 --max-load="$(nproc)"
+# -j1 keeps peak memory low on the 7.6 GiB dev box. NOTE: do not combine
+# -j1 with --max-load -- with a single job it is a no-op that only looks
+# meaningful.
+ninja -C "$BUILD_DIR" -j1
 ninja -C "$BUILD_DIR" install
 
 echo

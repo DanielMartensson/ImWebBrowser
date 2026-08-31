@@ -250,7 +250,6 @@ void Browser::shutdown()
 void Browser::applySettings()
 {
     auto* s = webkit_web_view_get_settings(view_);
-    (void)s;  // only touched when a feature option differs from the default
     // Sites that gate on browser identity (GeForce Now, some DRM/streaming)
     // reject WPE's default/mobile-ish UA; override via IMWB_USER_AGENT.
     if (const char* ua = g_getenv("IMWB_USER_AGENT")) {
@@ -493,17 +492,19 @@ void Browser::showErrorPage(const char* uri, const char* errorTitle, const char*
 
     std::string u = uri, t = errorTitle, m = message;
     escapeHtml(u);
+    escapeHtml(t);
     escapeHtml(m);
-    char html[4096];
-    snprintf(html, sizeof(html),
-             "<!DOCTYPE html><html><head><title>%s</title><style>"
-             "body{background:#fffafa;color:#111;font-family:sans-serif;margin:2em}"
-             "h3{background:#555;color:#fffafa;padding:.3em .6em;border-radius:4px}"
-             ".uri{font-family:monospace;color:#888}"
-             "</style></head><body><h3>%s</h3><p class='uri'>%s</p><p>%s</p>"
-             "<button onclick=\"window.location.href='%s'\">Try again</button></body></html>",
-             t.c_str(), t.c_str(), u.c_str(), m.c_str(), u.c_str());
-    webkit_web_view_load_alternate_html(view_, html, uri, nullptr);
+
+    const std::string html =
+        "<!DOCTYPE html><html><head><title>" + t + "</title><style>"
+        "body{background:#fffafa;color:#111;font-family:sans-serif;margin:2em}"
+        "h3{background:#555;color:#fffafa;padding:.3em .6em;border-radius:4px}"
+        ".uri{font-family:monospace;color:#888}"
+        "</style></head><body><h3>" + t + "</h3>"
+        "<p class='uri'>" + u + "</p><p>" + m + "</p>"
+        "<button onclick=\"window.location.href='" + u + "'\">Try again</button></body></html>";
+
+    webkit_web_view_load_alternate_html(view_, html.c_str(), uri, nullptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -525,19 +526,20 @@ void Browser::loadUrl(std::string url)
         const bool looksLikeDomain =
             url.rfind("localhost", 0) == 0 ||
             (url.find('.') != std::string::npos && url.find(' ') == std::string::npos);
-        if (!url.empty() && url[0] == '/') {
+        if (url[0] == '/') {
             url = "file://" + url;
         } else if (looksLikeDomain) {
             url = "https://" + url;
         } else {  // anything else is a web search
+            static const char* kKeep = "-_.~";
             std::string query;
-            char hex[4];
             for (unsigned char c : url) {
-                if (g_ascii_isalnum(c) || strchr("-_.~", c))
+                if (g_ascii_isalnum(c) || strchr(kKeep, c))
                     query += char(c);
                 else if (c == ' ')
                     query += '+';
                 else {
+                    char hex[4];
                     snprintf(hex, sizeof(hex), "%%%02X", c);
                     query += hex;
                 }
@@ -625,8 +627,9 @@ bool Browser::handleKeyBinding(uint32_t sym, uint32_t mods)
     const bool ctrl = mods & wpe_input_keyboard_modifier_control;
     const bool shift = mods & wpe_input_keyboard_modifier_shift;
     const bool alt = mods & wpe_input_keyboard_modifier_alt;
+    const bool plainCtrl = ctrl && !shift && !alt;  // Ctrl alone
 
-    if (ctrl && !shift && !alt && sym == XKB_KEY_w) {
+    if (plainCtrl && sym == XKB_KEY_w) {
         alive = false;  // Ctrl+W: quit
         return true;
     }
@@ -634,11 +637,11 @@ bool Browser::handleKeyBinding(uint32_t sym, uint32_t mods)
         webkit_web_view_set_zoom_level(view_, webkit_web_view_get_zoom_level(view_) + kZoomStep);
         return true;
     }
-    if (ctrl && !shift && !alt && sym == XKB_KEY_minus) {
+    if (plainCtrl && sym == XKB_KEY_minus) {
         webkit_web_view_set_zoom_level(view_, webkit_web_view_get_zoom_level(view_) - kZoomStep);
         return true;
     }
-    if (ctrl && !shift && !alt && sym == XKB_KEY_0) {
+    if (plainCtrl && sym == XKB_KEY_0) {
         webkit_web_view_set_zoom_level(view_, 1.0);
         return true;
     }
@@ -650,11 +653,11 @@ bool Browser::handleKeyBinding(uint32_t sym, uint32_t mods)
         goForward();
         return true;
     }
-    if (ctrl && !shift && !alt && (sym == XKB_KEY_r || sym == XKB_KEY_R)) {
+    if (plainCtrl && (sym == XKB_KEY_r || sym == XKB_KEY_R)) {
         reload(shift);  // Ctrl+R reload, Ctrl+Shift+R bypass cache
         return true;
     }
-    if (!ctrl && !alt && (sym == XKB_KEY_F5)) {
+    if (!ctrl && !alt && sym == XKB_KEY_F5) {
         reload(shift);  // F5 reload, Shift+F5 bypass cache
         return true;
     }
@@ -909,8 +912,20 @@ void Browser::pumpEvents()
 
 #if ENABLE_BENCHMARK_HARNESS
 
-static void onEvalDone(GObject*, GAsyncResult*, gpointer) {}
+// We only care about the side effect (document.title gets picked up by the
+// notify::title signal), not the JS result — this no-op just satisfies GLib's
+// requirement that an async evaluate_javascript call has a ready-callback.
+static void onEvalDone(GObject* /*source*/, GAsyncResult* /*res*/, gpointer /*userData*/) {}
 
+// Both callbacks below are GLib timeout sources. Their gboolean return value
+// tells the main loop what to do next:
+//   G_SOURCE_CONTINUE (TRUE)  -> re-schedule this callback (keep the timer alive)
+//   G_SOURCE_REMOVE   (FALSE) -> stop calling it (remove the timer)
+// So the return value is a lifecycle signal to GLib, not a computed result.
+
+// Reads back the page's FPS counter (published through document.title by the
+// JS below) and records one sample. Runs ~32 times (once per second), then
+// prints the summary and stops itself.
 gboolean benchSample(Browser* self)
 {
     if (self->benchPendingFps_ > 0 && self->benchSamplesTaken_ < 32) {
@@ -928,6 +943,8 @@ gboolean benchSample(Browser* self)
             hi = std::max(hi, f);
             sum += f;
         }
+        // Average is over the full 32-slot window (benchSamplesTaken_), so any
+        // empty (0) slots pull the mean down — matches the original behaviour.
         std::fprintf(stderr,
                      "[bench] RESULT: %d fish, avg %.1f fps, min %.1f fps, max %.1f fps at %dx%d\n",
                      self->benchFish_, sum / self->benchSamplesTaken_, lo, hi, self->viewWidth(),
@@ -936,15 +953,18 @@ gboolean benchSample(Browser* self)
         webkit_web_view_evaluate_javascript(self->view_,
                                             "document.title='WebGL Aquarium'", -1, nullptr, nullptr, nullptr,
                                             onEvalDone, nullptr);
-        return G_SOURCE_REMOVE;
+        return G_SOURCE_REMOVE;  // sampling complete: stop the timer
     }
 
+    // Ask the page to publish its current FPS so the next invocation can read it.
     webkit_web_view_evaluate_javascript(self->view_,
                                         "document.title='FPS:'+(document.getElementById('fps')?.textContent||'0')",
                                         -1, nullptr, nullptr, nullptr, onEvalDone, nullptr);
-    return G_SOURCE_CONTINUE;
+    return G_SOURCE_CONTINUE;  // keep sampling once per second
 }
 
+// One-shot hook run 8s after load; it starts the per-second sampler above,
+// then removes itself.
 gboolean benchBegin(Browser* self)
 {
     std::fprintf(stderr, "[bench] sampling (%d fish)...\n", self->benchFish_);

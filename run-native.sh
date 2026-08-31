@@ -17,10 +17,13 @@ cd "$(dirname "$0")"
 BUILD_DIR="build-native"
 REBUILD=0
 
+# Filter out this script's own flags; keep everything else to pass to the browser.
+APP_ARGS=()
 for arg in "$@"; do
     case "$arg" in
-        --rebuild) REBUILD=1; shift ;;
+        --rebuild) REBUILD=1 ;;
         --help|-h) echo "See the header of this script for usage."; exit 0 ;;
+        *) APP_ARGS+=("$arg") ;;
     esac
 done
 
@@ -160,10 +163,12 @@ if ! has_wayland; then
             done
             read -r sw sh < <(xdpyinfo -display "$DISPLAY" 2>/dev/null \
                 | awk '/dimensions/{split($2,d,"x"); print d[1], d[2]; exit}') || true
-            read -r dw dh < <(wmctrl -lG 2>/dev/null \
-                | awk '/Skrivbord|Desktop/{print $(NF-3), $(NF-2); exit}') || true
             [ "$sw" = "" ] && sw=1280; [ "$sh" = "" ] && sh=1000
-            [ -n "$dh" ] || dh=$((sh - 40))
+            # Usable desktop height = screen height minus an estimated panel
+            # height. Deliberately locale-independent and approximate: reading
+            # the real panel geometry would require matching a translateable
+            # window title, and the ~40px difference does not matter here.
+            dh=$((sh - 40))
             read -r cw ch < <(wmctrl -lG 2>/dev/null \
                 | awk -v id="$local_winid" '$1==id{print $5, $6}') || true
             [ -n "$ch" ] || ch="$CANVAS_HEIGHT"
@@ -285,11 +290,11 @@ center_browser_window() {
 }
 
 if [ -z "$WESTON_PID" ]; then
-    exec launch_app "$@"
+    exec launch_app "${APP_ARGS[@]}"
 fi
 
 echo "==> Launching ImWebBrowser (WAYLAND_DISPLAY=$WAYLAND_DISPLAY) ..."
-launch_app "$@" &
+launch_app "${APP_ARGS[@]}" &
 APP_PID=$!
 center_browser_window
 

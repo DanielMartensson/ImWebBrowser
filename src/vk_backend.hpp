@@ -46,6 +46,9 @@ public:
     ImTextureID importFrame(VkDmabufFrame& frame);
     // Records GetDrawData(), submits and presents (vsync FIFO).
     bool drawFrame(int width, int height);
+    // Kiosk direct path: draws the latest imported frame with a minimal
+    // fullscreen pipeline (no ImGui), submits and presents.
+    bool drawFrameKiosk(int width, int height);
     void shutdown();
 
 #ifdef IMWB_BACKEND_VULKAN

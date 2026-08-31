@@ -29,6 +29,106 @@
 #define IMWB_MOD_LINEAR 0ULL
 #define IMWB_MOD_INVALID (1ULL << 61) // fourcc_mod_code(NONE, DRM_FORMAT_RESERVED)
 
+// ---------------------------------------------------------------------------
+// Kiosk-mode fullscreen blit shaders (precompiled SPIR-V so builds need no
+// shader toolchain). They draw a fullscreen textured triangle, vertex index
+// driven (no vertex buffer). Re-generate with:
+//   glslc -fshader-stage=vert -o blit.vert.spv blit.vert
+//   glslc -fshader-stage=frag -o blit.frag.spv blit.frag
+// then dump the words into the arrays below.
+// ---------------------------------------------------------------------------
+static const uint32_t kBlitVertSpv[] = {
+    // blit.vert.spv (1372 bytes, 343 words)
+    0x07230203u, 0x00010000u, 0x000d000bu, 0x00000031u, 0x00000000u, 0x00020011u,
+    0x00000001u, 0x0006000bu, 0x00000001u, 0x4c534c47u, 0x6474732eu, 0x3035342eu,
+    0x00000000u, 0x0003000eu, 0x00000000u, 0x00000001u, 0x0008000fu, 0x00000000u,
+    0x00000004u, 0x6e69616du, 0x00000000u, 0x0000000bu, 0x00000018u, 0x00000024u,
+    0x00030003u, 0x00000002u, 0x000001c2u, 0x000a0004u, 0x475f4c47u, 0x4c474f4fu,
+    0x70635f45u, 0x74735f70u, 0x5f656c79u, 0x656e696cu, 0x7269645fu, 0x69746365u,
+    0x00006576u, 0x00080004u, 0x475f4c47u, 0x4c474f4fu, 0x6e695f45u, 0x64756c63u,
+    0x69645f65u, 0x74636572u, 0x00657669u, 0x00040005u, 0x00000004u, 0x6e69616du,
+    0x00000000u, 0x00030005u, 0x00000008u, 0x00000078u, 0x00060005u, 0x0000000bu,
+    0x565f6c67u, 0x65747265u, 0x646e4978u, 0x00007865u, 0x00030005u, 0x00000012u,
+    0x00000079u, 0x00030005u, 0x00000018u, 0x00565576u, 0x00060005u, 0x00000022u,
+    0x505f6c67u, 0x65567265u, 0x78657472u, 0x00000000u, 0x00060006u, 0x00000022u,
+    0x00000000u, 0x505f6c67u, 0x7469736fu, 0x006e6f69u, 0x00070006u, 0x00000022u,
+    0x00000001u, 0x505f6c67u, 0x746e696fu, 0x657a6953u, 0x00000000u, 0x00070006u,
+    0x00000022u, 0x00000002u, 0x435f6c67u, 0x4470696cu, 0x61747369u, 0x0065636eu,
+    0x00070006u, 0x00000022u, 0x00000003u, 0x435f6c67u, 0x446c6c75u, 0x61747369u,
+    0x0065636eu, 0x00030005u, 0x00000024u, 0x00000000u, 0x00040047u, 0x0000000bu,
+    0x0000000bu, 0x0000002au, 0x00040047u, 0x00000018u, 0x0000001eu, 0x00000000u,
+    0x00050048u, 0x00000022u, 0x00000000u, 0x0000000bu, 0x00000000u, 0x00050048u,
+    0x00000022u, 0x00000001u, 0x0000000bu, 0x00000001u, 0x00050048u, 0x00000022u,
+    0x00000002u, 0x0000000bu, 0x00000003u, 0x00050048u, 0x00000022u, 0x00000003u,
+    0x0000000bu, 0x00000004u, 0x00030047u, 0x00000022u, 0x00000002u, 0x00020013u,
+    0x00000002u, 0x00030021u, 0x00000003u, 0x00000002u, 0x00030016u, 0x00000006u,
+    0x00000020u, 0x00040020u, 0x00000007u, 0x00000007u, 0x00000006u, 0x00040015u,
+    0x00000009u, 0x00000020u, 0x00000001u, 0x00040020u, 0x0000000au, 0x00000001u,
+    0x00000009u, 0x0004003bu, 0x0000000au, 0x0000000bu, 0x00000001u, 0x0004002bu,
+    0x00000009u, 0x0000000du, 0x00000001u, 0x0004002bu, 0x00000009u, 0x0000000fu,
+    0x00000002u, 0x00040017u, 0x00000016u, 0x00000006u, 0x00000002u, 0x00040020u,
+    0x00000017u, 0x00000003u, 0x00000016u, 0x0004003bu, 0x00000017u, 0x00000018u,
+    0x00000003u, 0x0004002bu, 0x00000006u, 0x0000001au, 0x3f800000u, 0x00040017u,
+    0x0000001eu, 0x00000006u, 0x00000004u, 0x00040015u, 0x0000001fu, 0x00000020u,
+    0x00000000u, 0x0004002bu, 0x0000001fu, 0x00000020u, 0x00000001u, 0x0004001cu,
+    0x00000021u, 0x00000006u, 0x00000020u, 0x0006001eu, 0x00000022u, 0x0000001eu,
+    0x00000006u, 0x00000021u, 0x00000021u, 0x00040020u, 0x00000023u, 0x00000003u,
+    0x00000022u, 0x0004003bu, 0x00000023u, 0x00000024u, 0x00000003u, 0x0004002bu,
+    0x00000009u, 0x00000025u, 0x00000000u, 0x0004002bu, 0x00000006u, 0x00000027u,
+    0x40000000u, 0x0004002bu, 0x00000006u, 0x0000002du, 0x00000000u, 0x00040020u,
+    0x0000002fu, 0x00000003u, 0x0000001eu, 0x00050036u, 0x00000002u, 0x00000004u,
+    0x00000000u, 0x00000003u, 0x000200f8u, 0x00000005u, 0x0004003bu, 0x00000007u,
+    0x00000008u, 0x00000007u, 0x0004003bu, 0x00000007u, 0x00000012u, 0x00000007u,
+    0x0004003du, 0x00000009u, 0x0000000cu, 0x0000000bu, 0x000500c4u, 0x00000009u,
+    0x0000000eu, 0x0000000cu, 0x0000000du, 0x000500c7u, 0x00000009u, 0x00000010u,
+    0x0000000eu, 0x0000000fu, 0x0004006fu, 0x00000006u, 0x00000011u, 0x00000010u,
+    0x0003003eu, 0x00000008u, 0x00000011u, 0x0004003du, 0x00000009u, 0x00000013u,
+    0x0000000bu, 0x000500c7u, 0x00000009u, 0x00000014u, 0x00000013u, 0x0000000fu,
+    0x0004006fu, 0x00000006u, 0x00000015u, 0x00000014u, 0x0003003eu, 0x00000012u,
+    0x00000015u, 0x0004003du, 0x00000006u, 0x00000019u, 0x00000008u, 0x0004003du,
+    0x00000006u, 0x0000001bu, 0x00000012u, 0x00050083u, 0x00000006u, 0x0000001cu,
+    0x0000001au, 0x0000001bu, 0x00050050u, 0x00000016u, 0x0000001du, 0x00000019u,
+    0x0000001cu, 0x0003003eu, 0x00000018u, 0x0000001du, 0x0004003du, 0x00000006u,
+    0x00000026u, 0x00000008u, 0x00050085u, 0x00000006u, 0x00000028u, 0x00000026u,
+    0x00000027u, 0x00050083u, 0x00000006u, 0x00000029u, 0x00000028u, 0x0000001au,
+    0x0004003du, 0x00000006u, 0x0000002au, 0x00000012u, 0x00050085u, 0x00000006u,
+    0x0000002bu, 0x0000002au, 0x00000027u, 0x00050083u, 0x00000006u, 0x0000002cu,
+    0x0000002bu, 0x0000001au, 0x00070050u, 0x0000001eu, 0x0000002eu, 0x00000029u,
+    0x0000002cu, 0x0000002du, 0x0000001au, 0x00050041u, 0x0000002fu, 0x00000030u,
+    0x00000024u, 0x00000025u, 0x0003003eu, 0x00000030u, 0x0000002eu, 0x000100fdu,
+    0x00010038u,
+};
+
+static const uint32_t kBlitFragSpv[] = {
+    // blit.frag.spv (624 bytes, 156 words)
+    0x07230203u, 0x00010000u, 0x000d000bu, 0x00000014u, 0x00000000u, 0x00020011u,
+    0x00000001u, 0x0006000bu, 0x00000001u, 0x4c534c47u, 0x6474732eu, 0x3035342eu,
+    0x00000000u, 0x0003000eu, 0x00000000u, 0x00000001u, 0x0007000fu, 0x00000004u,
+    0x00000004u, 0x6e69616du, 0x00000000u, 0x00000009u, 0x00000011u, 0x00030010u,
+    0x00000004u, 0x00000007u, 0x00030003u, 0x00000002u, 0x000001c2u, 0x000a0004u,
+    0x475f4c47u, 0x4c474f4fu, 0x70635f45u, 0x74735f70u, 0x5f656c79u, 0x656e696cu,
+    0x7269645fu, 0x69746365u, 0x00006576u, 0x00080004u, 0x475f4c47u, 0x4c474f4fu,
+    0x6e695f45u, 0x64756c63u, 0x69645f65u, 0x74636572u, 0x00657669u, 0x00040005u,
+    0x00000004u, 0x6e69616du, 0x00000000u, 0x00050005u, 0x00000009u, 0x4374756fu,
+    0x726f6c6fu, 0x00000000u, 0x00040005u, 0x0000000du, 0x78655475u, 0x00000000u,
+    0x00030005u, 0x00000011u, 0x00565576u, 0x00040047u, 0x00000009u, 0x0000001eu,
+    0x00000000u, 0x00040047u, 0x0000000du, 0x00000022u, 0x00000000u, 0x00040047u,
+    0x0000000du, 0x00000021u, 0x00000000u, 0x00040047u, 0x00000011u, 0x0000001eu,
+    0x00000000u, 0x00020013u, 0x00000002u, 0x00030021u, 0x00000003u, 0x00000002u,
+    0x00030016u, 0x00000006u, 0x00000020u, 0x00040017u, 0x00000007u, 0x00000006u,
+    0x00000004u, 0x00040020u, 0x00000008u, 0x00000003u, 0x00000007u, 0x0004003bu,
+    0x00000008u, 0x00000009u, 0x00000003u, 0x00090019u, 0x0000000au, 0x00000006u,
+    0x00000001u, 0x00000000u, 0x00000000u, 0x00000000u, 0x00000001u, 0x00000000u,
+    0x0003001bu, 0x0000000bu, 0x0000000au, 0x00040020u, 0x0000000cu, 0x00000000u,
+    0x0000000bu, 0x0004003bu, 0x0000000cu, 0x0000000du, 0x00000000u, 0x00040017u,
+    0x0000000fu, 0x00000006u, 0x00000002u, 0x00040020u, 0x00000010u, 0x00000001u,
+    0x0000000fu, 0x0004003bu, 0x00000010u, 0x00000011u, 0x00000001u, 0x00050036u,
+    0x00000002u, 0x00000004u, 0x00000000u, 0x00000003u, 0x000200f8u, 0x00000005u,
+    0x0004003du, 0x0000000bu, 0x0000000eu, 0x0000000du, 0x0004003du, 0x0000000fu,
+    0x00000012u, 0x00000011u, 0x00050057u, 0x00000007u, 0x00000013u, 0x0000000eu,
+    0x00000012u, 0x0003003eu, 0x00000009u, 0x00000013u, 0x000100fdu, 0x00010038u,
+};
+
 #define VK_CHECK(call)                                                                             \
     do {                                                                                           \
         VkResult _r = (call);                                                                      \
@@ -53,7 +153,8 @@ struct FrameResource {
     VkImage image = VK_NULL_HANDLE;
     VkDeviceMemory memory = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
-    VkDescriptorSet descriptor = VK_NULL_HANDLE;
+    VkDescriptorSet descriptor = VK_NULL_HANDLE;  // ImGui texture descriptor
+    VkDescriptorSet kioskDesc = VK_NULL_HANDLE;   // kiosk blit descriptor
 };
 
 struct VulkanPresent::Impl {
@@ -85,11 +186,19 @@ struct VulkanPresent::Impl {
     VkDescriptorPool descPool = VK_NULL_HANDLE;
     VkSampler sampler = VK_NULL_HANDLE;
 
+    // Minimal kiosk blit pipeline (no ImGui) that draws the imported frame as
+    // a fullscreen textured triangle.
+    VkDescriptorSetLayout blitDescLayout = VK_NULL_HANDLE;
+    VkPipelineLayout blitPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline blitPipeline = VK_NULL_HANDLE;
+    VkDescriptorPool kioskDescPool = VK_NULL_HANDLE;
+
     std::vector<FrameResource> alive;  // imported web frames (bounded)
 
     bool createInstance(SDL_Window* window);
     bool pickAndCreateDevice();
     bool createRenderPass();
+    bool createKioskBlit();
     bool createSwapchainObjects();
     bool createFramebuffers();
     void destroySwapchainObjects();
@@ -231,6 +340,123 @@ bool VulkanPresent::Impl::createRenderPass()
     return true;
 }
 
+bool VulkanPresent::Impl::createKioskBlit()
+{
+    // Shader modules from the embedded SPIR-V above. If anything below fails
+    // we destroy whatever was created so far (members are zero-init).
+    auto cleanup = [&] {
+        if (kioskDescPool) { vkDestroyDescriptorPool(device, kioskDescPool, nullptr); kioskDescPool = VK_NULL_HANDLE; }
+        if (blitPipelineLayout) { vkDestroyPipelineLayout(device, blitPipelineLayout, nullptr); blitPipelineLayout = VK_NULL_HANDLE; }
+        if (blitDescLayout) { vkDestroyDescriptorSetLayout(device, blitDescLayout, nullptr); blitDescLayout = VK_NULL_HANDLE; }
+    };
+    // Failure handler: destroys the shader modules (still alive here) and
+    // whatever members were created so far, then signals failure.
+    auto fail = [&](VkShaderModule v, VkShaderModule f) {
+        cleanup();
+        vkDestroyShaderModule(device, v, nullptr);
+        vkDestroyShaderModule(device, f, nullptr);
+        return false;
+    };
+    auto makeModule = [&](const uint32_t* code, size_t words, VkShaderModule& out) {
+        VkShaderModuleCreateInfo sci{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        sci.codeSize = words * sizeof(uint32_t);
+        sci.pCode = code;
+        return vkCreateShaderModule(device, &sci, nullptr, &out) == VK_SUCCESS;
+    };
+    VkShaderModule vert = VK_NULL_HANDLE, frag = VK_NULL_HANDLE;
+    if (!makeModule(kBlitVertSpv, sizeof(kBlitVertSpv) / sizeof(kBlitVertSpv[0]), vert))
+        return false;
+    if (!makeModule(kBlitFragSpv, sizeof(kBlitFragSpv) / sizeof(kBlitFragSpv[0]), frag)) {
+        vkDestroyShaderModule(device, vert, nullptr);
+        return false;
+    }
+
+    VkDescriptorSetLayoutBinding bind{};
+    bind.binding = 0;
+    bind.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bind.descriptorCount = 1;
+    bind.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkDescriptorSetLayoutCreateInfo dci{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    dci.bindingCount = 1;
+    dci.pBindings = &bind;
+    if (vkCreateDescriptorSetLayout(device, &dci, nullptr, &blitDescLayout) != VK_SUCCESS)
+        return fail(vert, frag);
+
+    VkPipelineLayoutCreateInfo pl{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    pl.setLayoutCount = 1;
+    pl.pSetLayouts = &blitDescLayout;
+    if (vkCreatePipelineLayout(device, &pl, nullptr, &blitPipelineLayout) != VK_SUCCESS)
+        return fail(vert, frag);
+
+    // per-frame descriptor sets for the imported textures
+    VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8};
+    VkDescriptorPoolCreateInfo dp{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+    dp.maxSets = 8;
+    dp.poolSizeCount = 1;
+    dp.pPoolSizes = &ps;
+    if (vkCreateDescriptorPool(device, &dp, nullptr, &kioskDescPool) != VK_SUCCESS)
+        return fail(vert, frag);
+
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vert;
+    stages[0].pName = "main";
+    stages[1] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = frag;
+    stages[1].pName = "main";
+
+    VkPipelineVertexInputStateCreateInfo vi{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+    VkPipelineInputAssemblyStateCreateInfo ia{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkPipelineViewportStateCreateInfo vs{VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+    vs.viewportCount = 1;  // dynamically set in drawFrameKiosk
+    vs.scissorCount = 1;
+    VkPipelineRasterizationStateCreateInfo rs{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.cullMode = VK_CULL_MODE_NONE;
+    rs.lineWidth = 1.f;
+    VkPipelineMultisampleStateCreateInfo ms{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineColorBlendAttachmentState ca{};
+    ca.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    ca.blendEnable = VK_FALSE;
+    VkPipelineColorBlendStateCreateInfo cb{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+    cb.attachmentCount = 1;
+    cb.pAttachments = &ca;
+    VkDynamicState dyn[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo ds{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+    ds.dynamicStateCount = 2;
+    ds.pDynamicStates = dyn;
+
+    VkGraphicsPipelineCreateInfo gp{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+    gp.stageCount = 2;
+    gp.pStages = stages;
+    gp.pVertexInputState = &vi;
+    gp.pInputAssemblyState = &ia;
+    gp.pViewportState = &vs;
+    gp.pRasterizationState = &rs;
+    gp.pMultisampleState = &ms;
+    gp.pColorBlendState = &cb;
+    gp.pDynamicState = &ds;
+    gp.layout = blitPipelineLayout;
+    gp.renderPass = renderPass;
+    gp.subpass = 0;
+
+    vkDestroyShaderModule(device, vert, nullptr);
+    vkDestroyShaderModule(device, frag, nullptr);
+    VkResult pr = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gp, nullptr, &blitPipeline);
+    if (pr != VK_SUCCESS) {
+        cleanup();
+        std::fprintf(stderr, "[vk] kiosk blit pipeline failed (%d)\n", int(pr));
+        return false;
+    }
+    std::fprintf(stderr, "[vk] kiosk blit pipeline ready (no ImGui path)\n");
+    return true;
+}
+
 bool VulkanPresent::Impl::createSwapchainObjects()
 {
     VkSurfaceCapabilitiesKHR caps;
@@ -355,6 +581,40 @@ void VulkanPresent::Impl::destroySwapchainObjects()
 // ---------------------------------------------------------------------------
 // Frame import
 // ---------------------------------------------------------------------------
+
+// UNDEFINED -> SHADER_READ_ONLY_OPTIMAL via a one-shot command buffer, so ImGui
+// can sample the imported frame.
+static void transitionImageLayout(VulkanPresent::Impl& d, VkImage image, VkImageAspectFlags aspect)
+{
+    VkCommandBufferAllocateInfo ca{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    ca.commandPool = d.cmdPool;
+    ca.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    ca.commandBufferCount = 1;
+    VkCommandBuffer c = VK_NULL_HANDLE;
+    vkAllocateCommandBuffers(d.device, &ca, &c);
+
+    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(c, &bi);
+
+    VkImageMemoryBarrier bar{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    bar.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    bar.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    bar.image = image;
+    bar.subresourceRange = {aspect, 0, 1, 0, 1};
+    bar.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(c, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &bar);
+    vkEndCommandBuffer(c);
+
+    VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    si.commandBufferCount = 1;
+    si.pCommandBuffers = &c;
+    vkQueueSubmit(d.queue, 1, &si, VK_NULL_HANDLE);
+    vkQueueWaitIdle(d.queue);
+    vkFreeCommandBuffers(d.device, d.cmdPool, 1, &c);
+}
+
 static bool importFrameInternal(VulkanPresent::Impl& d, const VkDmabufFrame& f, FrameResource& out)
 {
     VkFormat format = fourccToVk(f.fourcc);
@@ -476,32 +736,8 @@ static bool importFrameInternal(VulkanPresent::Impl& d, const VkDmabufFrame& f, 
         return false;
     }
 
-    // UNDEFINED -> SHADER_READ_ONLY_OPTIMAL via one-shot command buffer.
-    VkCommandBufferAllocateInfo ca{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-    ca.commandPool = d.cmdPool;
-    ca.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    ca.commandBufferCount = 1;
-    VkCommandBuffer c = VK_NULL_HANDLE;
-    vkAllocateCommandBuffers(d.device, &ca, &c);
-    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(c, &bi);
-
-    VkImageMemoryBarrier bar{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-    bar.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    bar.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    bar.image = image;
-    bar.subresourceRange = {aspect, 0, 1, 0, 1};
-    bar.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    vkCmdPipelineBarrier(c, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &bar);
-    vkEndCommandBuffer(c);
-    VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    si.commandBufferCount = 1;
-    si.pCommandBuffers = &c;
-    vkQueueSubmit(d.queue, 1, &si, VK_NULL_HANDLE);
-    vkQueueWaitIdle(d.queue);
-    vkFreeCommandBuffers(d.device, d.cmdPool, 1, &c);
+    // UNDEFINED -> SHADER_READ_ONLY_OPTIMAL so ImGui can sample the frame.
+    transitionImageLayout(d, image, aspect);
 
     out.image = image;
     out.memory = mem;
@@ -515,6 +751,32 @@ static bool importFrameInternal(VulkanPresent::Impl& d, const VkDmabufFrame& f, 
         vkFreeMemory(d.device, mem, nullptr);
         return false;
     }
+
+    // Kiosk blit descriptor (sampler + view at binding 0), used by the
+    // ImGui-free direct path. Same view as the ImGui descriptor above.
+    VkDescriptorSetAllocateInfo dai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+    dai.descriptorPool = d.kioskDescPool;
+    dai.descriptorSetCount = 1;
+    dai.pSetLayouts = &d.blitDescLayout;
+    VkDescriptorSet kiosk = VK_NULL_HANDLE;
+    if (vkAllocateDescriptorSets(d.device, &dai, &kiosk) != VK_SUCCESS) {
+        std::fprintf(stderr, "[vk] kiosk descriptor allocate failed\n");
+        ImGui_ImplVulkan_RemoveTexture(out.descriptor);
+        vkDestroyImageView(d.device, view, nullptr);
+        vkDestroyImage(d.device, image, nullptr);
+        vkFreeMemory(d.device, mem, nullptr);
+        return false;
+    }
+    VkDescriptorImageInfo dii{d.sampler, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    w.dstSet = kiosk;
+    w.dstBinding = 0;
+    w.descriptorCount = 1;
+    w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    w.pImageInfo = &dii;
+    vkUpdateDescriptorSets(d.device, 1, &w, 0, nullptr);
+
+    out.kioskDesc = kiosk;
     return true;
 }
 
@@ -544,6 +806,8 @@ bool VulkanPresent::init(SDL_Window* window, int width, int height)
         return false;
 
     if (!d->createRenderPass() || !d->createSwapchainObjects())
+        return false;
+    if (!d->createKioskBlit())
         return false;
     (void)width;
     (void)height;
@@ -593,6 +857,8 @@ void VulkanPresent::Impl::destroyFrame(FrameResource& fr)
 {
     if (fr.descriptor)
         ImGui_ImplVulkan_RemoveTexture(fr.descriptor);
+    if (fr.kioskDesc)
+        vkFreeDescriptorSets(device, kioskDescPool, 1, &fr.kioskDesc);
     if (fr.view)
         vkDestroyImageView(device, fr.view, nullptr);
     if (fr.image)
@@ -602,29 +868,32 @@ void VulkanPresent::Impl::destroyFrame(FrameResource& fr)
     fr = {};
 }
 
-bool VulkanPresent::drawFrame(int width, int height)
+// ---------------------------------------------------------------------------
+// Frame presentation helpers shared by the ImGui and kiosk paths.
+// ---------------------------------------------------------------------------
+
+// Waits for the in-flight frame, acquires a swapchain image, resets / begins
+// the command buffer and starts the render pass. On success returns D.cmd and
+// sets fi (sync index) and idx (swapchain image index); nullptr on failure.
+static VkCommandBuffer beginFrame(VulkanPresent::Impl& D, uint32_t& fi, uint32_t& idx)
 {
-    Impl& D = *d;
-    uint32_t fi = D.syncIndex++ % D.framesInFlight;
-    (void)width;
-    (void)height;
+    fi = D.syncIndex++ % D.framesInFlight;
 
     vkWaitForFences(D.device, 1, &D.submitFences[D.imageIndex], VK_TRUE, UINT64_MAX);
     vkResetFences(D.device, 1, &D.submitFences[D.imageIndex]);
 
-    uint32_t idx = 0;
     VkResult r = vkAcquireNextImageKHR(D.device, D.swapchain, UINT64_MAX,
                                        D.acquireSems[fi], VK_NULL_HANDLE, &idx);
     if (r == VK_ERROR_OUT_OF_DATE_KHR)
-        return true;  // stale: caller resizes and retries next frame
+        return nullptr;  // stale: caller resizes and retries next frame
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR)
-        return false;
+        return nullptr;
     D.imageIndex = idx;
 
     vkResetCommandBuffer(D.cmd, 0);
     VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     if (vkBeginCommandBuffer(D.cmd, &bi) != VK_SUCCESS)
-        return false;
+        return nullptr;
 
     VkClearValue clear{{{0.f, 0.f, 0.f, 1.f}}};
     VkRenderPassBeginInfo rp{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -634,9 +903,12 @@ bool VulkanPresent::drawFrame(int width, int height)
     rp.clearValueCount = 1;
     rp.pClearValues = &clear;
     vkCmdBeginRenderPass(D.cmd, &rp, VK_SUBPASS_CONTENTS_INLINE);
+    return D.cmd;
+}
 
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), D.cmd);
-
+// Ends the render pass, submits and presents. Returns true on success.
+static bool endAndPresent(VulkanPresent::Impl& D, uint32_t fi, uint32_t idx)
+{
     vkCmdEndRenderPass(D.cmd);
     if (vkEndCommandBuffer(D.cmd) != VK_SUCCESS)
         return false;
@@ -659,7 +931,7 @@ bool VulkanPresent::drawFrame(int width, int height)
     pi.swapchainCount = 1;
     pi.pSwapchains = &D.swapchain;
     pi.pImageIndices = &idx;
-    r = vkQueuePresentKHR(D.queue, &pi);
+    VkResult r = vkQueuePresentKHR(D.queue, &pi);
     static const bool kDump = std::getenv("IMWB_VKDUMP") != nullptr;
     static int dbgFrames = 0;
     ++dbgFrames;
@@ -674,6 +946,43 @@ bool VulkanPresent::drawFrame(int width, int height)
     return r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR;
 }
 
+bool VulkanPresent::drawFrame(int width, int height)
+{
+    (void)width;
+    (void)height;
+    uint32_t fi = 0, idx = 0;
+    if (!beginFrame(*d, fi, idx))
+        return false;
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), d->cmd);
+    return endAndPresent(*d, fi, idx);
+}
+
+bool VulkanPresent::drawFrameKiosk(int width, int height)
+{
+    (void)width;
+    (void)height;
+    uint32_t fi = 0, idx = 0;
+    if (!beginFrame(*d, fi, idx))
+        return false;
+
+    // Draw the most recently imported web frame as a fullscreen textured
+    // triangle -- no ImGui involved. If none is available yet, the cleared
+    // render pass alone (black) is presented.
+    Impl& D = *d;
+    if (!D.alive.empty()) {
+        VkViewport vp{0.f, 0.f, (float)D.extent.width, (float)D.extent.height, 0.f, 1.f};
+        vkCmdSetViewport(D.cmd, 0, 1, &vp);
+        VkRect2D sc{};
+        sc.extent = D.extent;
+        vkCmdSetScissor(D.cmd, 0, 1, &sc);
+        vkCmdBindPipeline(D.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, D.blitPipeline);
+        vkCmdBindDescriptorSets(D.cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, D.blitPipelineLayout,
+                                0, 1, &D.alive.back().kioskDesc, 0, nullptr);
+        vkCmdDraw(D.cmd, 3, 1, 0, 0);  // fullscreen triangle
+    }
+    return endAndPresent(D, fi, idx);
+}
+
 void VulkanPresent::shutdown()
 {
     if (!d)
@@ -683,6 +992,14 @@ void VulkanPresent::shutdown()
         d->destroyFrame(fr);
     d->alive.clear();
     d->destroySwapchainObjects();
+    if (d->blitPipeline)
+        vkDestroyPipeline(d->device, d->blitPipeline, nullptr);
+    if (d->blitPipelineLayout)
+        vkDestroyPipelineLayout(d->device, d->blitPipelineLayout, nullptr);
+    if (d->blitDescLayout)
+        vkDestroyDescriptorSetLayout(d->device, d->blitDescLayout, nullptr);
+    if (d->kioskDescPool)
+        vkDestroyDescriptorPool(d->device, d->kioskDescPool, nullptr);
     if (d->renderPass)
         vkDestroyRenderPass(d->device, d->renderPass, nullptr);
     if (d->descPool)
