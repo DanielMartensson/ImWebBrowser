@@ -207,10 +207,17 @@ trap cleanup EXIT
 # 3. Run the browser.
 # ---------------------------------------------------------------------------
 launch_app() {
+    # SDL_VIDEO_WAYLAND_MODE_EMULATION=0 avoids a SIGFPE (divide-by-zero) in
+    # SDL3 3.4.14's handle_wl_output_done() while libdecor-gtk drains the
+    # wl_output.done queue — seen with the nested Weston on the dev PC. Mode
+    # emulation is only cosmetic here, so disabling it is a safe no-op that
+    # prevents the crash and keeps the libdecor titlebar (so the window can
+    # still be moved by hand).
     WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
     SDL_VIDEODRIVER=wayland \
     EGL_PLATFORM=wayland \
     SDL_VIDEO_WAYLAND_PREFER_LIBDECOR=1 \
+    SDL_VIDEO_WAYLAND_MODE_EMULATION=0 \
     "$BUILD_DIR/imwebbrowser" "$@"
 }
 
