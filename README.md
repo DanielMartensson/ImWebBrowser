@@ -177,7 +177,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_WEBGL=ON -DENABLE_MEDIA=OFF .
 | `ENABLE_TAB_FOCUS_CYCLE` | ON | Tab key cycles focusable elements |
 | `ENABLE_TEXT_AREAS_RESIZE` | ON | Resizable `<textarea>` handles |
 | `ENABLE_BF_GESTURES` | OFF | Back/forward swipe gestures |
-| `ENABLE_WEBRTC` | ON | WebRTC and getUserMedia |
+| `ENABLE_WEBRTC` | ON | WebRTC and getUserMedia (enables WebKit's `enable-webrtc` + `enable-media-stream` settings) |
 | `ENABLE_MEDIA` | ON | HTML5 audio/video playback (GStreamer) |
 | `ENABLE_AUDIO` | ON | WebAudio API |
 | `ENABLE_AUTOPLAY` | OFF | Autoplay media without user gesture |
@@ -189,6 +189,28 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_WEBGL=ON -DENABLE_MEDIA=OFF .
 
 `CMAKE_BUILD_TYPE=Release` is strongly recommended; debug builds render the
 same pages several times slower.
+
+### WebRTC backend — decided by the WPE WebKit build
+
+`ENABLE_WEBRTC` only flips WebKit's runtime settings. **Which engine
+actually implements `RTCPeerConnection` is chosen when WPE WebKit itself is
+built**, via its CMake flag `USE_GSTREAMER_WEBRTC`:
+
+| `USE_GSTREAMER_WEBRTC` (WPE build) | Backend |
+|---|---|
+| **`ON`** (WPE default) | **GstWebRTC** — media/RTCPeerConnection carried over GStreamer's `webrtcbin` |
+| `OFF` | WPE's bundled **libwebrtc** stack |
+
+ImWebBrowser works with either, but **GstWebRTC is the configuration this
+project is built against** (the Watermelon-Wine Yocto layer sets
+`-DUSE_GSTREAMER_WEBRTC=ON`). That path needs the GStreamer `webrtc`/`rtp`/
+`sdp` components (≥ 1.20) and OpenSSL ≥ 3.0, so the runtime image must ship the
+matching `gstreamer1.0-plugins-*` packages. `libnice` (GStreamer's ICE library)
+covers the actual transport; do not confuse it with the unrelated `librice`
+build option which this configuration does **not** use.
+
+> To confirm the running engine exposes GstWebRTC, from the target shell:
+> `gst-inspect-1.0 webrtcbin`.
 
 ## Running
 
@@ -250,7 +272,6 @@ the target board.
 | `IMWB_VKDUMP=1` | *(Vulkan build)* One-shot swapchain dump to `/tmp/opencode/vk-dump.ppm`, taken after the page has loaded |
 | `IMWB_VKLINEAR=1` | *(Vulkan build)* Diagnostic: import frames as stride-based linear instead of DRM-modifier tiling |
 | `IMWB_VKGREEN=1` | *(Vulkan build)* Diagnostic: paint a green backdrop under the web layer to check whether it draws |
-| `IMWB_PROBE` | Network/scrolling diagnostics: js-injected probes on NVIDIA login/static-login pages, each `.js` resource logged with status/length, fetch-driven chunk and performance-entry checks |
 | `IMWB_MITM_ACCEPT=1` | Send all traffic through a debugging TLS MITM proxy (`http://127.0.0.1:4843`, see `mitm_proxy.py`), ignore TLS errors and whitelist the proxy certificate |
 
 ## Architecture
