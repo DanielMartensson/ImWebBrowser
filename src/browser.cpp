@@ -510,6 +510,9 @@ void Browser::showErrorPage(const char* uri, const char* errorTitle, const char*
 // Navigation
 // ---------------------------------------------------------------------------
 
+// Captured once at startup; forwarded input events run per frame.
+static const bool kDebugInput = g_getenv("IMWB_DEBUG_INPUT") != nullptr;
+
 void Browser::loadUrl(std::string url)
 {
     while (!url.empty() && (url.back() == ' ' || url.back() == '\n' || url.back() == '\r'))
@@ -547,7 +550,7 @@ void Browser::loadUrl(std::string url)
     progress = 0.f;
     loading = true;
     markPressHeal();  // page swap may swallow a held button-up
-    if (g_getenv("IMWB_DEBUG_INPUT"))
+    if (kDebugInput)
         std::fprintf(stderr, "[nav] loadUrl -> '%s'\n", url.c_str());
     webkit_web_view_load_uri(view_, url.c_str());
 }
@@ -572,7 +575,7 @@ void Browser::pointerMotion(float x, float y)
     // WebKit can maintain drag state between button transitions.
     wpe_input_pointer_event ev = {wpe_input_pointer_event_type_motion, uint32_t(g_get_monotonic_time() / 1000),
                                   int(x), int(std::max(0.f, y)), 0, pressedButtons_};
-    if (g_getenv("IMWB_DEBUG_INPUT"))
+    if (kDebugInput)
         std::fprintf(stderr, "[input] motion at (%.0f,%.0f) t=%u\n", x, y, (unsigned)(ev.time % 100000));
     wpe_view_backend_dispatch_pointer_event(backend_, &ev);
 }
@@ -597,7 +600,7 @@ void Browser::pointerButton(float x, float y, uint8_t sdlButton, bool pressed)
 
     wpe_input_pointer_event ev = {wpe_input_pointer_event_type_button, uint32_t(g_get_monotonic_time() / 1000),
                                   int(x), int(std::max(0.f, y)), btn, pressedButtons_};
-    if (g_getenv("IMWB_DEBUG_INPUT"))
+    if (kDebugInput)
         std::fprintf(stderr, "[input] button sdl=%u wpe=%u %s at (%.0f,%.0f) t=%u\n", sdlButton, btn,
                      pressed ? "down" : "up", x, y, (unsigned)(ev.time % 100000));
     wpe_view_backend_dispatch_pointer_event(backend_, &ev);
@@ -751,7 +754,7 @@ void Browser::key(uint32_t sdlScancode, uint16_t sdlMods, bool pressed)
         return;
 
     wpe_input_keyboard_event ev = {uint32_t(g_get_monotonic_time() / 1000), sym, keycode, pressed, mods};
-    if (g_getenv("IMWB_DEBUG_INPUT"))
+    if (kDebugInput)
         std::fprintf(stderr, "[input] key sym=0x%x kc=%u %s mods=0x%x\n", sym, keycode, pressed ? "down" : "up",
                      mods);
     wpe_view_backend_dispatch_keyboard_event(backend_, &ev);

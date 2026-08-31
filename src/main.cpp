@@ -22,6 +22,9 @@
 #include <unistd.h>
 #include <cstring>
 
+// Captured once at startup; forwarded input events run per frame.
+static const bool kDebugInput = g_getenv("IMWB_DEBUG_INPUT") != nullptr;
+
 namespace {
 
 struct Args {
@@ -199,7 +202,12 @@ int main(int argc, char** argv)
     const bool kioskBase = args.kiosk;  // deployment mode: WM can never close us
     int toolbarPx = 0;
     auto applyLayout = [&] {
-        SDL_GetWindowSizeInPixels(window, &pixW, &pixH);
+        int newW = 0, newH = 0;
+        SDL_GetWindowSizeInPixels(window, &newW, &newH);
+        if (newW == pixW && newH == pixH)
+            return;  // SDL3 fires RESIZED and PIXEL_SIZE_CHANGED for one resize
+        pixW = newW;
+        pixH = newH;
         const float density = SDL_GetWindowPixelDensity(window);
         toolbarPx = kiosk ? 0 : int(ui::kToolbarHeight * density + 0.5f);
         browser.resize(pixW, pixH - toolbarPx);
@@ -283,7 +291,7 @@ int main(int argc, char** argv)
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
             hadEvents = true;
-            if (g_getenv("IMWB_DEBUG_INPUT") &&
+            if (kDebugInput &&
                 (ev.type == SDL_EVENT_TEXT_INPUT || ev.type == SDL_EVENT_TEXT_EDITING))
                 std::fprintf(stderr, "[input] %s '%s'\n",
                              ev.type == SDL_EVENT_TEXT_INPUT ? "TEXT_INPUT" : "TEXT_EDITING",
@@ -313,7 +321,7 @@ int main(int argc, char** argv)
                 // Pause presentation while hidden: swapping into a surface the
                 // compositor has hidden can leave the EGL state wedged after a
                 // quick minimize/restore cycle (observed with libdecor+weston).
-                if (g_getenv("IMWB_DEBUG_INPUT"))
+                if (kDebugInput)
                     std::fprintf(stderr, "[input] MINIMIZED flags=0x%lx\n",
                                  (unsigned long)SDL_GetWindowFlags(window));
                 minimized = true;
@@ -322,7 +330,7 @@ int main(int argc, char** argv)
 
             case SDL_EVENT_WINDOW_RESTORED:
             case SDL_EVENT_WINDOW_SHOWN:
-                if (g_getenv("IMWB_DEBUG_INPUT"))
+                if (kDebugInput)
                     std::fprintf(stderr, "[input] %s flags=0x%lx\n",
                                  ev.type == SDL_EVENT_WINDOW_RESTORED ? "RESTORED" : "SHOWN",
                                  (unsigned long)SDL_GetWindowFlags(window));
@@ -508,7 +516,7 @@ int main(int argc, char** argv)
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        if (g_getenv("IMWB_DEBUG_INPUT")) {  // ImGui mouse-state diagnostics
+        if (kDebugInput) {  // ImGui mouse-state diagnostics
             static gint64 lastIoLog = 0;
             gint64 now = g_get_monotonic_time();
             if (now - lastIoLog >= 1000000) {
