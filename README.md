@@ -121,11 +121,13 @@ CPU-uploaded shared-memory frames (slower but functional).
 
 ```bash
 # OpenGL ES 3 backend (default)
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+# Release (-O3 -DNDEBUG) is the default build type; the -DCMAKE_BUILD_TYPE
+# below is optional and only shown for explicitness.
+cmake -B build
 cmake --build build -j$(nproc)
 
 # Vulkan backend
-cmake -B build-vk -DCMAKE_BUILD_TYPE=Release -DIMWB_BACKEND_VULKAN=ON
+cmake -B build-vk -DIMWB_BACKEND_VULKAN=ON
 cmake --build build-vk -j$(nproc)
 ```
 
@@ -187,8 +189,9 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_WEBGL=ON -DENABLE_MEDIA=OFF .
 | `ENABLE_DEVELOPER_EXTRAS` | OFF | WebKit Web Inspector (context-menu) |
 | `ENABLE_BENCHMARK_HARNESS` | OFF | Automated WebGL Aquarium benchmark CLI |
 
-`CMAKE_BUILD_TYPE=Release` is strongly recommended; debug builds render the
-same pages several times slower.
+`Release` (`-O3 -DNDEBUG`) is the default build type for raw-speed page
+rendering; pass `-DCMAKE_BUILD_TYPE=Debug` only when you need symbols — a
+debug build renders the same pages several times slower.
 
 ### WebRTC backend — decided by the WPE WebKit build
 

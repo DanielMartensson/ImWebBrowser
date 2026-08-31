@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Default to an optimized (Release) build so a bare `cmake -B build` never
+# silently produces an unoptimized binary (CMAKE_CXX_FLAGS_RELEASE = -O3 -DNDEBUG).
+# Pass -DCMAKE_BUILD_TYPE=Debug explicitly when you want symbols + no
+# optimization. This is a target-hardware-focused browser: speed is the point.
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Release default)" FORCE)
+endif()
+
 # ---------------------------------------------------------------------------
 # Required dependencies (system installations, no vendored copies).
 # ---------------------------------------------------------------------------
