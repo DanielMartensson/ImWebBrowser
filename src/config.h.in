@@ -22,3 +22,10 @@
 #cmakedefine01 ENABLE_GSTREAMER
 #cmakedefine01 ENABLE_DEVELOPER_EXTRAS
 #cmakedefine01 ENABLE_BENCHMARK_HARNESS
+
+// Preferred GStreamer video decoder to force to MAX rank at startup
+// (empty string = leave GStreamer's own ranking; see IMWB_VIDEO_DECODER).
+#define IMWB_VIDEO_DECODER "@IMWB_VIDEO_DECODER@"
+
+// Media content types requiring hardware decoding (empty = engine default).
+#define IMWB_MEDIA_HW_TYPES "@IMWB_MEDIA_HW_TYPES@"

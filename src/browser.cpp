@@ -176,6 +176,26 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
     webkit_web_context_set_cache_model(webkit_web_context_get_default(),
                                        WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
 
+    // Federated (SSO) login flows — Nvidia included — authenticate through a
+    // popup/redirect between the relying party and the IdP that depend on
+    // third-party cookies staying alive. WPE defaults block those (ITP + a
+    // no-third-party cookie policy), so the sign-in choices never mount. This
+    // is a kiosk browser pointed at trusted fixed sites, so allow all cookies
+    // and disable Intelligent Tracking Prevention by default; set
+    // IMWB_THIRD_PARTY_COOKIES=0 to restore the strict, privacy-first policy.
+    {
+        auto* session = webkit_web_view_get_network_session(view_);
+        if (!session)
+            session = webkit_network_session_get_default();
+        const char* p3 = g_getenv("IMWB_THIRD_PARTY_COOKIES");
+        const bool thirdParty = !p3 || g_strcmp0(p3, "0") != 0;
+        auto* cookies = webkit_network_session_get_cookie_manager(session);
+        webkit_cookie_manager_set_accept_policy(
+            cookies, thirdParty ? WEBKIT_COOKIE_POLICY_ACCEPT_ALWAYS
+                                : WEBKIT_COOKIE_POLICY_ACCEPT_NO_THIRD_PARTY);
+        webkit_network_session_set_itp_enabled(session, !thirdParty);
+    }
+
     // MITM debugging hook: route every request through our logging proxy on
     // localhost and whitelist the proxy certificate when the engine complains
     // about it (see onLoadFailedTls). Enabled only with IMWB_MITM_ACCEPT=1.
@@ -302,6 +322,17 @@ void Browser::applySettings()
     webkit_settings_set_enable_webrtc(s, ENABLE_WEBRTC);
     webkit_settings_set_enable_media_stream(s, ENABLE_WEBRTC);
 #endif
+    // Media content types that must be decoded in hardware, forwarded to
+    // webkit_settings_set_media_content_types_requiring_hardware_support().
+    // Empty keeps the engine default (all-software decode allowed). On the
+    // STM32MP257F set IMWB_MEDIA_HW_TYPES='video/mp4; codecs="avc1"' so H.264
+    // MP4 is forced onto the VPU instead of a slow software decode.
+#ifdef IMWB_MEDIA_HW_TYPES
+    if (IMWB_MEDIA_HW_TYPES[0] != '\0') {
+        webkit_settings_set_media_content_types_requiring_hardware_support(s, IMWB_MEDIA_HW_TYPES);
+        std::fprintf(stderr, "[hw-accel] media HW-required types: %s\n", IMWB_MEDIA_HW_TYPES);
+    }
+#endif  // IMWB_MEDIA_HW_TYPES
 #if ENABLE_MEDIA != 1
     webkit_settings_set_enable_mediasource(s, ENABLE_MEDIA);
     webkit_settings_set_media_playback_allows_inline(s, ENABLE_MEDIA);

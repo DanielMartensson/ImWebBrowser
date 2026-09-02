@@ -25,6 +25,26 @@
 // Captured once at startup; forwarded input events run per frame.
 static const bool kDebugInput = g_getenv("IMWB_DEBUG_INPUT") != nullptr;
 
+// Keep SDL text input in lock-step with ImGui's active text widget
+// (io.WantTextInput). The bundled imgui_impl_sdl3 backend only issues
+// SDL_StopTextInput() when bd->ImeWindow is set, but that member is only
+// populated for IME windows (data->WantVisible), never for a plain InputText
+// — so once the URL bar gets focus the backend calls SDL_StartTextInput() and
+// never stops it. While SDL text input stays active, X11 delivers letter keys
+// as SDL_EVENT_TEXT_INPUT (consumed by ImGui) instead of SDL_EVENT_KEY_DOWN,
+// so the page's <input> (DDG's search box) becomes untypeable until a
+// kiosk/fullscreen flip happens to reset the window's text-input state.
+// Sync the state here, unconditionally, every frame.
+static void syncTextInput(SDL_Window* window, ImGuiIO& io)
+{
+    if (!window)
+        return;
+    if (!SDL_TextInputActive(window) && io.WantTextInput)
+        SDL_StartTextInput(window);
+    else if (SDL_TextInputActive(window) && !io.WantTextInput)
+        SDL_StopTextInput(window);
+}
+
 namespace {
 
 struct Args {
@@ -78,6 +98,21 @@ Args parseArgs(int argc, char** argv)
 int main(int argc, char** argv)
 {
     const Args args = parseArgs(argc, argv);
+
+    // Preferred GStreamer video decoder (IMWB_VIDEO_DECODER, wired in via
+    // config.h). Forced to MAX rank before WebKit boots GStreamer so the
+    // chosen element becomes the primary decoder for its codec. Empty builds
+    // leave GStreamer's own ranking untouched. Examples: avdec_h264 (libav,
+    // dev-PC default), vah264dec (VA-API), openh264dec, v4l2slh264dec (the
+    // STM32MP257F VPU), avdec_h265, vulkanh264dec.
+#if defined(ENABLE_GSTREAMER) && defined(IMWB_VIDEO_DECODER)
+    if (IMWB_VIDEO_DECODER[0] != '\0') {
+        std::string rank = IMWB_VIDEO_DECODER;
+        rank += ":MAX";
+        g_setenv("GST_PLUGIN_FEATURE_RANK", rank.c_str(), TRUE);
+        std::fprintf(stderr, "gstreamer: forcing decoder '%s' to MAX rank\n", IMWB_VIDEO_DECODER);
+    }
+#endif  // ENABLE_GSTREAMER && IMWB_VIDEO_DECODER
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "error: SDL_Init failed: %s\n", SDL_GetError());
@@ -353,8 +388,14 @@ int main(int argc, char** argv)
                     browser.focusUrlRequest = true;  // focus URL bar
                     break;
                 }
-                // While the user types in ImGui widgets, keys stay in the UI.
-                if (ImGui::GetIO().WantCaptureKeyboard && !(mods & (SDL_KMOD_CTRL | SDL_KMOD_ALT)))
+                // Only trap keys while the user is actually typing into an
+                // ImGui text widget (URL bar / search overlay). WantCaptureKeyboard
+                // also turns on whenever the mouse merely hovers a control (e.g.
+                // the header of the toolbar), which would swallow every key and
+                // leave the page's <input> (DDG's search box) untypeable. WantTextInput
+                // is true only while an ImGui widget holds an active IME/typing
+                // session, which is the precise condition for keeping keys in the UI.
+                if (ImGui::GetIO().WantTextInput && !(mods & (SDL_KMOD_CTRL | SDL_KMOD_ALT)))
                     break;
                 browser.key(ev.key.scancode, mods, ev.key.down);
                 break;
@@ -468,6 +509,7 @@ int main(int argc, char** argv)
             ui::drawStatsOverlay(showStats, browser);
         }
         ImGui::Render();
+        syncTextInput(window, ImGui::GetIO());
         vp.drawFrame(pixW, pixH);
         browser.afterPresent();
         lastPresentUs = g_get_monotonic_time();
@@ -558,6 +600,7 @@ int main(int argc, char** argv)
         ui::drawStatsOverlay(showStats, browser);
 
         ImGui::Render();
+        syncTextInput(window, ImGui::GetIO());
         glViewport(0, 0, pixW, pixH);
         glClearColor(0.f, 0.f, 0.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT);

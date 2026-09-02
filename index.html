@@ -244,7 +244,8 @@ footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);colo
 
   <p style="color:var(--dim)">Runtime media stack (when <span class="opt">ENABLE_MEDIA<span class="def">=ON</span></span>):
      <span class="opt">gstreamer1.0-plugins-base</span><span class="opt">-good</span><span class="opt">-bad</span>
-     <span class="opt">-ugly</span><span class="opt">gstreamer1.0-libav</span></p>
+     <span class="opt">-ugly</span><span class="opt">gstreamer1.0-libav</span>
+     <span class="opt">gstreamer1.0-nice</span> (WebRTC ICE)</p>
 
   <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">WebRTC backend</h3>
   <p style="color:var(--dim)"><span class="opt">ENABLE_WEBRTC<span class="def">=ON</span></span> only exposes
@@ -254,9 +255,44 @@ footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);colo
      <b>OFF</b> → WPE’s bundled <b>libwebrtc</b> stack.</p>
   <p style="color:var(--dim)">GstWebRTC needs the GStreamer <code>webrtc</code>/<code>rtp</code>/<code>sdp</code>
      components (≥ 1.20) and OpenSSL ≥ 3.0 in the runtime image, plus <code>libnice</code> for ICE
-     transport (not to be confused with the unrelated <code>librice</code> build option). ImWebBrowser
+     transport — shipped as the separate <span class="opt">gstreamer1.0-nice</span> package. Without
+     <span class="opt">gstreamer1.0-nice</span>, <code>webrtcbin</code> cannot do ICE/STUN/TURN and
+     WebRTC sessions fail to connect (real-world symptom: GeForce Now aborts at ~90% load with
+     <code>0xC0F2220E</code>, “The game quit unexpectedly”). (Not to be confused with the unrelated
+     <code>librice</code> build option.) ImWebBrowser
      runs GstWebRTC on both the Linux dev PC and the STM32MP257F target (built for Vulkan +
-     GStreamer hardware decode). Verify the live engine with <code>gst-inspect-1.0 webrtcbin</code>.</p>
+     GStreamer hardware decode). Verify the live engine with <code>gst-inspect-1.0 webrtcbin</code> —
+     and that ICE is actually available with <code>gst-inspect-1.0 nicesrc</code>.</p>
+
+  <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">Video decoder</h3>
+  <p style="color:var(--dim)"><span class="opt">IMWB_VIDEO_DECODER<span class="def">=""</span></span> picks a
+     preferred GStreamer H.264/HEVC decoder element and forces it to MAX rank at
+     startup via <code>GST_PLUGIN_FEATURE_RANK</code>. Empty (default) keeps
+     GStreamer's own ranking (typically <code>avdec_h264</code> on a dev PC). Examples:
+     <code>avdec_h264</code> (libav software), <code>vah264dec</code> (VA-API H.264),
+     <code>openh264dec</code>, <code>vulkanh264dec</code>,
+     <code>v4l2slh264dec</code> (the STM32MP257F VPU hardware decoder).
+     Note this affects the <i>primary</i> decoder for its codec; codecs with no
+     hardware available (HEVC/VP9/AV1 on the W540's Haswell) still decode in software
+     via <code>gstreamer1.0-libav</code> / <code>aom</code> — which is what makes
+     YouTube and high-quality Netflix/GFN streams playable.
+     The value is baked into the binary via <code>config.h</code> and also echoed
+     by <code>./run</code> so WebKit's helper processes inherit it. Verify the live
+     decoder with <code>gst-inspect-1.0 h264dec</code>.</p>
+  <p style="color:var(--dim)"><span class="opt">IMWB_MEDIA_HW_TYPES<span class="def">=""</span></span> lists media
+     content types that <b>must</b> decode in hardware (WebKit's
+     <code>media-content-types-requiring-hardware-support</code>). Empty = engine
+     default (software decode allowed). Set <code>'video/mp4; codecs="avc1"'</code> to
+     force H.264 MP4 onto the GPU/VPU (used on both the W540 and STM32MP257F) instead
+     of a slow software decode. Keep it narrow enough that services with no hardware
+     fallback (HEVC/VP9/AV1 on the W540) still play in software.</p>
+  <p style="color:var(--dim)">Note: WPE does <b>not</b> expose the GTK-only
+     <code>webkit_settings_set_hardware_acceleration_policy()</code> (its
+     <code>always|never|on_demand</code> enum is gated behind <code>PLATFORM(GTK)</code>).
+     In WPE, accelerated compositing is simply <b>on whenever a usable GPU is present</b> —
+     there is no per-build acceleration on/off flag. The hardware-tuning knobs that
+     <i>are</i> exposed are the backend (<code>IMWB_BACKEND_VULKAN</code>), the decoder
+     (<code>IMWB_VIDEO_DECODER</code>) and the media HW types above.</p>
 
   <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">Rendering backend</h3>
   <table>
@@ -294,12 +330,68 @@ footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);colo
 
 <pre><b>cmake</b> -B build              <i># Release (-O3) is the default; -DCMAKE_BUILD_TYPE=Release is optional</i>
 <b>cmake</b> --build build -j$(nproc)
-<i># Vulkan backend</i>
-<b>cmake</b> -B build-vk -DIMWB_BACKEND_VULKAN=ON
-<b>cmake</b> --build build-vk -j$(nproc)
-<i># example: lean digital-signage build</i>
-<b>cmake</b> -B build-kiosk -DENABLE_WEBRTC=OFF -DENABLE_ENCRYPTED_MEDIA=OFF \
+<i># example: lean digital-signage build (same build dir, different flags)</i>
+<b>cmake</b> -B build -DENABLE_WEBRTC=OFF -DENABLE_ENCRYPTED_MEDIA=OFF \
       -DENABLE_DEVELOPER_EXTRAS=OFF -DENABLE_BENCHMARK_HARNESS=OFF</pre>
+
+  <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">Platform build recipes</h3>
+  <p style="color:var(--dim)">Per-platform hardware-tuning. Pick the recipe that matches the
+     machine you are building for — the same source tree can ship a desktop binary, a
+     VPU-accelerated STM32 binary and a software-only binary from three configures.</p>
+
+  <div data-tip-tt="w540" data-tip='Default build. Desktop GPU (NVK/ANV on this hybrid) handles compositing; hardware H.264 goes through Intel VA-API.'>
+    <b style="color:var(--acc)">Lenovo ThinkPad W540</b> (development PC):
+    <pre><b>cmake</b> -B build
+<i># prefer + require hardware H.264 via Intel VA-API (vah264dec) — or use avdec_h264 / openh264dec / vulkanh264dec</i>
+<b>cmake</b> -B build \
+  -DIMWB_VIDEO_DECODER=vah264dec \
+  -DIMWB_MEDIA_HW_TYPES='video/mp4; codecs="avc1"'
+<b>cmake</b> --build build -j$(nproc)</pre>
+  </div>
+
+  <div data-tip-tt="stm32" data-tip='STM32MP257F: Vulkan on Mali, H.264 off the VPU via the unique V4L2-stateless decoder, and WebKit must require H.264 MP4 to be hardware-decoded.'>
+    <b style="color:var(--acc)">STM32MP257F</b> (Watermelon-Wine target — Mali + VPU):
+    <pre><b>cmake</b> -B build \
+  -DIMWB_BACKEND_VULKAN=ON \
+  -DIMWB_VIDEO_DECODER=v4l2slh264dec \
+  -DIMWB_MEDIA_HW_TYPES='video/mp4; codecs="avc1"'
+<b>cmake</b> --build build -j$(nproc)</pre>
+  </div>
+
+  <div data-tip-tt="soft" data-tip='No GPU / headless: pin the libav software decoder and allow software decode for everything.'>
+    <b style="color:var(--acc)">Software-only</b> (no GPU / headless):
+    <pre><b>cmake</b> -B build \
+  -DIMWB_VIDEO_DECODER=avdec_h264 \
+  -DIMWB_MEDIA_HW_TYPES=''
+<b>cmake</b> --build build -j$(nproc)</pre>
+  </div>
+
+  <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">What each service needs</h3>
+  <p style="color:var(--dim)">Tune the flags for whichever services you care about. A service is
+     playable only when <i>all</i> its requirements are met: the video codec (drives
+     <code>IMWB_VIDEO_DECODER</code> / <code>IMWB_MEDIA_HW_TYPES</code>), WebRTC
+     (<code>ENABLE_WEBRTC</code> + <code>gstreamer1.0-nice</code>) and DRM
+     (<code>ENABLE_ENCRYPTED_MEDIA</code> + a Widevine CDM).</p>
+  <table>
+    <tr><th>Service</th><th>Video codec</th><th>WebRTC</th><th>DRM</th><th>What to enable</th></tr>
+    <tr data-tip='Streams via WebRTC (needs gstreamer1.0-nice); H.264 hardware decode on W540 / VPU on STM32.'>
+      <td><b>GeForce Now</b></td><td>H.264 (HEVC on high tiers)</td><td>✅</td><td>streaming DRM</td>
+      <td><code>ENABLE_WEBRTC=ON</code> + <code>gstreamer1.0-nice</code>; H.264 hw decoder</td></tr>
+    <tr data-tip='VP9/AV1 software decode on W540 (avdec_vp9 / av1dec from gstreamer1.0-libav + aom). GPU compositing handles the page.'>
+      <td><b>YouTube</b></td><td>VP9 / AV1</td><td>—</td><td>—</td>
+      <td><code>gstreamer1.0-libav</code> + aom; GPU compositing</td></tr>
+    <tr data-tip='Requires Widevine/EME. Current WPE build has ENABLE_ENCRYPTED_MEDIA=OFF and no Widevine → Netflix will not play yet.'>
+      <td><b>Netflix</b></td><td>H.264 / HEVC</td><td>—</td><td>✅ <b>Widevine</b></td>
+      <td>rebuild WebKit with <code>ENABLE_ENCRYPTED_MEDIA=ON</code> + install a Widevine CDM</td></tr>
+    <tr data-tip='Pure WebGL rendering, no video — nothing to decode; just needs GPU compositing.'>
+      <td><b>WebGL Fish tank</b></td><td>—</td><td>—</td><td>—</td>
+      <td>nothing — runs out of the box</td></tr>
+  </table>
+  <p style="color:var(--dim)"><b>Netflix caveat:</b> <code>ENABLE_ENCRYPTED_MEDIA</code> is a
+     <i>WebKit build-time</i> flag that is only functional with the WPE
+     <a href="https://wpewebkit.org/related-projects/">Thunder/Widevine</a> CDM module. Our current
+     build has it <code>OFF</code> and no Widevine, so Netflix will not play until that is set up.
+     GeForce Now and YouTube work with the current build.</p>
 </section>
 
 <footer>

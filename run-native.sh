@@ -14,8 +14,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-BUILD_DIR="build-native"
+BUILD_DIR="build"
 REBUILD=0
+
+# Allow pointing at an alternative build directory without editing the
+# script: IMWB_BUILD_DIR=build-dev
+: "${IMWB_BUILD_DIR:=$BUILD_DIR}"
+BUILD_DIR="$IMWB_BUILD_DIR"
 
 # Filter out this script's own flags; keep everything else to pass to the browser.
 APP_ARGS=()

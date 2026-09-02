@@ -107,6 +107,7 @@ sudo apt install libvulkan-dev
 |---|---|---|
 | GStreamer core + base | `gstreamer1.0-tools gstreamer1.0-plugins-base` | Media framework WebKit links against |
 | GStreamer good/bad | `gstreamer1.0-plugins-good gstreamer1.0-plugins-bad` | Most audio/video codecs, v4l2, http srcs |
+| GStreamer ICE | `gstreamer1.0-nice` | ICE/STUN/TURN for WebRTC (`webrtcbin`); **required for GeForce Now / video-call sites** |
 | GStreamer ugly / libav | `gstreamer1.0-plugins-ugly gstreamer1.0-libav` | H.264, MP3 and other common codecs |
 | GPU driver with GLES 3 *(GLES build)* | `mesa-utils` (Mesa: `libgl1-mesa-dri`) | Zero-copy dmabuf import & blit |
 | Vulkan driver + loader *(Vulkan build)* | `vulkan-tools` (Mesa: `mesa-vulkan-drivers`) | Swapchain present, dma-buf import |
@@ -126,9 +127,9 @@ CPU-uploaded shared-memory frames (slower but functional).
 cmake -B build
 cmake --build build -j$(nproc)
 
-# Vulkan backend
-cmake -B build-vk -DIMWB_BACKEND_VULKAN=ON
-cmake --build build-vk -j$(nproc)
+# Vulkan backend (rebuild into the same directory; add these flags)
+cmake -B build -DIMWB_BACKEND_VULKAN=ON
+cmake --build build -j$(nproc)
 ```
 
 `-DIMWB_BACKEND_VULKAN=ON` automatically disables the OpenGL ES backend —
@@ -193,6 +194,33 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_WEBGL=ON -DENABLE_MEDIA=OFF .
 rendering; pass `-DCMAKE_BUILD_TYPE=Debug` only when you need symbols — a
 debug build renders the same pages several times slower.
 
+### Hardware tuning
+
+These flags are **platform-specific** — the same source tree produces a binary
+tuned for a desktop GPU, for the STM32MP257F's Mali+VPU, or for a CPU-only
+board, simply by configuring with different values. Pick the ones that match
+the machine you are building for.
+
+| Option | Default | Controls |
+|---|---|---|
+| `IMWB_BACKEND_OPENGL_ES` | ON | Render via SDL3 GL (OpenGL ES 3). Pick the backend your driver does best. |
+| `IMWB_BACKEND_VULKAN` | OFF | Render via Vulkan (dma-buf `VkImage` import); disables GLES. Vulkan needs a mature driver with `VK_EXT_image_drm_format_modifier`. |
+| `IMWB_VIDEO_DECODER` | *(empty)* | GStreamer video-decoder element forced to **MAX** rank at startup (`avdec_h264`, `vah264dec`, `openh264dec`, `vulkanh264dec`, `v4l2slh264dec`, …). Empty keeps GStreamer's own ranking (usually software `avdec_h264`). Applied via `GST_PLUGIN_FEATURE_RANK`, mirrored by the `./run` script. |
+| `IMWB_MEDIA_HW_TYPES` | *(empty)* | String of media content types that **must** decode in hardware (WebKit `media-content-types-requiring-hardware-support`). Empty = engine default (software decode allowed). On STM32MP257F set `'video/mp4; codecs="avc1"'` to force H.264 MP4 onto the VPU. |
+
+> **A note on hardware acceleration in WPE.** WPE WebKit does **not** expose the
+> GTK-only `webkit_settings_set_hardware_acceleration_policy()` (its
+> `always`/`never`/`on_demand` enum is gated behind `PLATFORM(GTK)`). In WPE,
+> accelerated compositing is simply *on whenever a usable GPU is present* — the
+> engine assumes an embedded/set-top GPU. There is therefore no per-build
+> "acceleration on/off" flag to wire up. If you genuinely need software-only
+> rendering on a GPU-less board, that is a property of the DRM/EGL stack, not of
+> ImWebBrowser — configure the GPU/driver off rather than asking the browser to
+> do something WPE has no API for. `IMWB_MEDIA_HW_TYPES` above is the one
+> hardware-decoding knob that *is* exposed, and it sits precisely where the
+> platform varies (VPU vs. CPU).
+
+
 ### WebRTC backend — decided by the WPE WebKit build
 
 `ENABLE_WEBRTC` only flips WebKit's runtime settings. **Which engine
@@ -208,9 +236,13 @@ ImWebBrowser works with either, but **GstWebRTC is the configuration this
 project is built against** (the Watermelon-Wine Yocto layer sets
 `-DUSE_GSTREAMER_WEBRTC=ON`). That path needs the GStreamer `webrtc`/`rtp`/
 `sdp` components (≥ 1.20) and OpenSSL ≥ 3.0, so the runtime image must ship the
-matching `gstreamer1.0-plugins-*` packages. `libnice` (GStreamer's ICE library)
-covers the actual transport; do not confuse it with the unrelated `librice`
-build option which this configuration does **not** use.
+matching `gstreamer1.0-plugins-*` packages. **`libnice` (GStreamer's ICE library)
+covers the actual transport** — that feature ships as the separate **`gstreamer1.0-nice`**
+package; without it `webrtcbin` cannot do ICE/STUN/TURN and WebRTC page sessions
+fail to connect (observed on the real-world wires: GeForce Now aborts at ~90%
+load with `0xC0F2220E`, "The game quit unexpectedly"). Do not confuse `libnice`
+with the unrelated `librice` build option which this configuration does **not**
+use.
 
 > To confirm the running engine exposes GstWebRTC, from the target shell:
 > `gst-inspect-1.0 webrtcbin`.
@@ -223,15 +255,146 @@ Reference platforms:
   GStreamer ranks highest (typically software `avdec_h264` on a dev machine).
 - **STM32MP257F target** — built for Vulkan + GStreamer in the Watermelon-Wine
   layer (recipes only) so the WebRTC media path can ride the hardware
-  (V4L2-stateless H.264 via `v4l2slh264dec`). Give the hardware decoder priority
-  before launch with `GST_PLUGIN_FEATURE_RANK="v4l2slh264dec:MAX"` so 1080p
-  streamed frames decode on the VPU instead of CPU.
+  (V4L2-stateless H.264 via `v4l2slh264dec`).
+
+#### Choosing the video decoder (`IMWB_VIDEO_DECODER`)
+
+GStreamer picks an H.264 decoder by rank; on a fresh dev machine that is the
+software `avdec_h264` (`gstreamer1.0-libav`). When you want a different element
+— VA-API (`vah264dec`), OpenH264 (`openh264dec`), a Vulkan decoder
+(`vulkanh264dec`), or the **STM32MP257F's unique V4L2-stateless VPU decoder
+(`v4l2slh264dec`)** — force it to primary rank with the `IMWB_VIDEO_DECODER`
+CMake flag. It is baked into the binary (`config.h`) and applied at startup via
+`GST_PLUGIN_FEATURE_RANK`; the same value is echoed by the `./run` script so
+WebKit's helper processes see it too:
+
+```bash
+cmake -B build -DIMWB_VIDEO_DECODER=vah264dec      # dev PC: VA-API (or avdec_h264, openh264dec, …)
+cmake -B build -DIMWB_VIDEO_DECODER=v4l2slh264dec  # STM32MP257F: VPU hardware decode
+cmake --build build
+```
+
+Leave it empty (the default) to keep GStreamer's own ranking. The setting is
+per-build, so the same source tree can ship a dev binary decoding in software
+and a target binary decoding on the VPU, each with its own configure.
+
+---
+
+### Platform build recipes
+
+Every platform has its own sweet spot of hardware-tuning flags. The recipes
+below capture the tested/known-good configuration for each. Comments show the
+relevant GStreamer decoders / hardware units involved.
+
+#### Lenovo ThinkPad W540 (development PC — Intel/NVIDIA hybrid GPU, desktop)
+
+Full-featured browser; the desktop GPU renders/composites everything and the
+Intel **Haswell** iGPU hardware-decodes **H.264**. `cmake -B build` with no
+flags still works (GPU compositing + GStreamer's software decode), but the
+recipe below prefers + requires hardware H.264.
+
+```bash
+cmake -B build                                          # GLES backend, all defaults
+# or for the Vulkan backend (Mesa NVK/ANV on this machine):
+# cmake -B build -DIMWB_BACKEND_VULKAN=ON
+
+# Prefer + require hardware H.264 via Intel VA-API (Haswell). Decoder options
+# on this hybrid:
+#   vah264dec      (Intel VA-API — uses the iGPU; H.264)
+#   avdec_h264     (software libav — safest, always works)
+#   openh264dec    (OpenH264 software)
+#   vulkanh264dec  (Vulkan decoder, if your driver exposes one)
+cmake -B build \
+  -DIMWB_VIDEO_DECODER=vah264dec \
+  -DIMWB_MEDIA_HW_TYPES='video/mp4; codecs="avc1"'
+cmake --build build -j$(nproc)
+```
+
+On the W540, **Haswell only hardware-decodes H.264** — there is no hardware
+HEVC, VP9 or AV1 (verified via `gst-inspect-1.0 vah265dec` / `vavp9dec` etc.
+→ missing). So `IMWB_MEDIA_HW_TYPES` deliberately requires only H.264 MP4 in
+hardware, and lets everything else (HEVC/VP9/AV1 — used by Netflix/YouTube at
+high quality) fall back to software via `gstreamer1.0-libav`. This keeps every
+service playable while leveraging the GPU where the hardware actually can.
+
+#### STM32MP257F (Watermelon-Wine target — Arm Mali GPU + VPU)
+
+Built for **Vulkan + GStreamer hardware decode** in the Yocto layer. Drive
+H.264 off the VPU via the unique V4L2-stateless decoder and require H.264 MP4
+to be hardware-decoded:
+
+```bash
+cmake -B build \
+  -DIMWB_BACKEND_VULKAN=ON \
+  -DIMWB_VIDEO_DECODER=v4l2slh264dec \
+  -DIMWB_MEDIA_HW_TYPES='video/mp4; codecs="avc1"'
+cmake --build build -j$(nproc)
+```
+
+- `v4l2slh264dec` — the STM32MP2 V4L2-stateless VPU decoder (1080p on the VPU
+  instead of CPU).
+- `video/mp4; codecs="avc1"` — makes WebKit *require* hardware decode for H.264
+  MP4, so it never silently falls back to a slow software decode.
+
+#### Software-only video (no GPU / headless / minimal CPU)
+
+Useful for a headless or very small board. Note: WPE has no API to switch
+compositing off (see the note above) — this recipe pins the *decoder* to pure
+software so no VPU/VA-API dependency is needed at runtime:
+
+```bash
+cmake -B build \
+  -DIMWB_VIDEO_DECODER=avdec_h264 \
+  -DIMWB_MEDIA_HW_TYPES=''
+cmake --build build -j$(nproc)
+```
+
+`avdec_h264` pins the libav software decoder; leaving `IMWB_MEDIA_HW_TYPES`
+empty lets all decode fall back to software without erroring.
+
+#### Quick reference
+
+| Platform | Backend | Decoder | Media HW types |
+|---|---|---|---|
+| Lenovo W540 (dev PC) | GLES (default) or Vulkan | `vah264dec` (VA-API) | `video/mp4; codecs="avc1"` |
+| STM32MP257F (VPU+Mali) | Vulkan | `v4l2slh264dec` | `video/mp4; codecs="avc1"` |
+| Software-only / headless | GLES | `avdec_h264` | *(empty)* |
+
+#### What each streaming service actually needs
+
+Use this to tune the flags for whichever services you care about on a given
+platform. The matrix mixes the **video codec** (drives `IMWB_VIDEO_DECODER` /
+`IMWB_MEDIA_HW_TYPES`) with the **DRM/EME + WebRTC** requirements (driven by the
+`ENABLE_*` flags), because a service is only playable when all three are met.
+
+| Service | Video codecs used | WebRTC | DRM/EME | What to enable |
+|---|---|---|---|---|
+| **GeForce Now** | H.264 (and HEVC on some tiers) | ✅ required (gaming stream) | streaming DRM | `ENABLE_WEBRTC=ON` (default) + `gstreamer1.0-nice`; H.264 hw decoder |
+| **YouTube** | VP9 / AV1 / AV1 multi-passes (H.264 fallback) | ❌ | ❌ | `avdec_vp9` + `av1dec` (software on W540) in `gstreamer1.0-libav`/`aom`; GPU compositing |
+| **Netflix** | H.264 / HEVC (per plan) | ❌ | ✅ **Widevine/EME required** | `ENABLE_ENCRYPTED_MEDIA=ON` **+ a Widevine CDM** (WPE needs the Thunder/Widevine module — see note below) |
+| **WebGL Fish tank** | none (renders in WebGL, no video) | ❌ | ❌ | nothing — it is pure GPU compositing; just run the page |
+
+> **DRM (Netflix) caveat.** `ENABLE_ENCRYPTED_MEDIA` in WPE is a *compile-time*
+> flag on the **WebKit** build, and on this port it is only functional when the
+> **WPE [Thunder/Widevine](https://wpewebkit.org/related-projects/) CDM module**
+> is also present. Our current WPE WebKit build has `ENABLE_ENCRYPTED_MEDIA=OFF`
+> (and no Widevine), so **Netflix playback will not work** until the JSON module
+> is installed and WebKit is rebuilt with EME on. GeForce Now and YouTube do
+> not depend on this — they play with the current build. See the
+> [WPE WebKit EME/TDM docs](https://wpewebkit.org/) for the CDM setup.
+>
+> `ENABLE_MEDIA_HW_TYPES` / `IMWB_VIDEO_DECODER` cover the *codec* half; the
+> *WebRTC* half for GeForce Now additionally needs the `gstreamer1.0-nice`
+> package (see the WebRTC backend section above).
+
+
+
 
 ## Running
 
 ```bash
-./build/imwebbrowser [URL] [--kiosk] [--bench-fish N]      # OpenGL ES build
-./build-vk/imwebbrowser [URL] [--kiosk] [--bench-fish N]   # Vulkan build
+./build/imwebbrowser [URL] [--kiosk] [--bench-fish N]  # OpenGL ES build
+# (for a Vulkan build into the same directory, see "Vulkan backend" above)
 ```
 
 | Argument | Meaning |
@@ -244,7 +407,7 @@ Reference platforms:
 
 WPE renders through a Wayland compositor, so on an X11 desktop the app cannot
 open a window directly. `run-native.sh` builds the GLES binary into
-`build-native/` and brings up a nested Weston (x11-backend) window that is
+`build/` and brings up a nested Weston (x11-backend) window that is
 torn down again when the browser exits:
 
 ```bash
@@ -252,6 +415,11 @@ torn down again when the browser exits:
 ./run-native.sh https://example.com            # any URL (or --kiosk, --bench-fish N)
 ./run-native.sh --rebuild                      # force a fresh configure + rebuild
 ```
+
+> On this dev PC the app can also run **without Weston**, directly on X11 —
+> just run the already-built binary with the WPE library dirs on
+> `LD_LIBRARY_PATH`. The `./run` script at the repo root does that (it points
+> at `~/wpe-new`), e.g. `./run --kiosk https://example.com`.
 
 The script always rebuilds the sources incrementally before launching, so
 after editing `src/` you can simply re-run it — it compiles nothing when

@@ -32,7 +32,7 @@ if(IMWB_BACKEND_VULKAN AND IMWB_BACKEND_OPENGL_ES)
     set(IMWB_BACKEND_OPENGL_ES OFF CACHE BOOL "" FORCE)
 endif()
 
-pkg_check_modules(WPEWEBKIT REQUIRED IMPORTED_TARGET wpe-webkit-2.0>=2.53.90)
+pkg_check_modules(WPEWEBKIT REQUIRED IMPORTED_TARGET wpe-webkit-2.0>=2.52.6)
 pkg_check_modules(WPEFDO REQUIRED IMPORTED_TARGET wpebackend-fdo-1.0)
 pkg_check_modules(LIBWPE REQUIRED IMPORTED_TARGET wpe-1.0)
 pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
@@ -103,6 +103,22 @@ option(ENABLE_GSTREAMER         "Require and verify the GStreamer media stack" O
 option(ENABLE_DEVELOPER_EXTRAS  "Enable the WebKit Web Inspector" OFF)
 option(ENABLE_BENCHMARK_HARNESS "Build the automated WebGL Aquarium benchmark harness" OFF)
 
+# Preferred GStreamer video decoder, applied at runtime via
+# GST_PLUGIN_FEATURE_RANK when ENABLE_GSTREAMER is on. Empty (default) leaves
+# GStreamer's own ranking untouched (usually lifts avdec_h264 to primary); set
+# it to force a specific decoder, e.g. -DIMWB_VIDEO_DECODER=vah264dec for
+# VA-API hardware decode, openh264dec, vulkanh264dec, avdec_h265, ...
+set(IMWB_VIDEO_DECODER "" CACHE STRING
+    "GStreamer video-decoder element forced to MAX rank at startup (empty = GStreamer default)")
+
+# Media content types that must be decoded in HARDWARE, forwarded to
+# webkit_settings_set_media_content_types_requiring_hardware_support() as a
+# string. Empty keeps the engine default (software decode allowed). On the
+# STM32MP257F set it to force H.264 MP4 onto the VPU:
+#   -DIMWB_MEDIA_HW_TYPES='video/mp4; codecs="avc1"'
+set(IMWB_MEDIA_HW_TYPES "" CACHE STRING
+    "Media content types that require hardware decoding (e.g. 'video/mp4; codecs=\"avc1\"'); empty = engine default")
+
 if(ENABLE_MEDIA AND NOT ENABLE_GSTREAMER)
     message(FATAL_ERROR "ENABLE_MEDIA=ON requires ENABLE_GSTREAMER=ON (media playback needs GStreamer)")
 endif()
@@ -123,6 +139,7 @@ message(STATUS "ImWebBrowser ${PROJECT_VERSION} feature matrix:")
 message(STATUS "  core     : js=${ENABLE_JAVASCRIPT} webgl=${ENABLE_WEBGL} canvas2d=${ENABLE_2D_CANVAS} smooth=${ENABLE_SMOOTH_SCROLLING} pagecache=${ENABLE_PAGE_CACHE} dnsprefetch=${ENABLE_DNS_PREFETCH}")
 message(STATUS "  a11y     : caret=${ENABLE_CARET_BROWSING} spatial=${ENABLE_SPATIAL_NAVIGATION} tabcycle=${ENABLE_TAB_FOCUS_CYCLE} resize=${ENABLE_TEXT_AREAS_RESIZE} gestures=${ENABLE_BF_GESTURES}")
 message(STATUS "  media    : playback=${ENABLE_MEDIA} audio=${ENABLE_AUDIO} autoplay=${ENABLE_AUTOPLAY} mediacaps=${ENABLE_MEDIA_CAPABILITIES} eme=${ENABLE_ENCRYPTED_MEDIA} gstreamer=${ENABLE_GSTREAMER}")
+message(STATUS "  hw       : mediaHwTypes='${IMWB_MEDIA_HW_TYPES}' decoder='${IMWB_VIDEO_DECODER}'")
 message(STATUS "  misc     : webrtc=${ENABLE_WEBRTC} devtools=${ENABLE_DEVELOPER_EXTRAS} bench=${ENABLE_BENCHMARK_HARNESS}")
 message(STATUS "")
 

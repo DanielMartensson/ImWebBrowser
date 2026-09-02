@@ -1,0 +1,48 @@
+From: ImWebBrowser
+Subject: [PATCH] WebCore/Soup: don't let content sniffer downgrade empty-body
+ script responses to text/plain
+
+The libsoup content sniffer guesses a MIME type from the response body.
+For an empty body (Content-Length: 0) there is nothing to sniff, and the
+sniffer falls back to "text/plain", overriding the server-declared
+"application/javascript". ES module loading then fails with
+"TypeError: 'text/plain' is not a valid JavaScript MIME type.",
+aborting SPA boot (seen with NVIDIA's login CDN serving 0-byte chunks
+during deploys).
+
+When the server declares a supported JavaScript MIME type and the
+response body is empty, keep the declared type instead of the sniffer's
+guess.
+
+diff --git a/Source/WebCore/platform/network/soup/ResourceResponseSoup.cpp b/Source/WebCore/platform/network/soup/ResourceResponseSoup.cpp
+index 1111111..2222222 100644
+--- a/Source/WebCore/platform/network/soup/ResourceResponseSoup.cpp
++++ b/Source/WebCore/platform/network/soup/ResourceResponseSoup.cpp
+@@ -60,12 +60,19 @@ ResourceResponse::ResourceResponse(SoupMessage* soupMessage, const CString& sni
+     auto* responseHeaders = soup_message_get_response_headers(soupMessage);
+     updateFromSoupMessageHeaders(responseHeaders);
+ 
+     String contentType;
+     const char* officialType = soup_message_headers_get_one(responseHeaders, "Content-Type");
+-    if (!sniffedContentType.isNull() && m_httpStatusCode != SOUP_STATUS_NOT_MODIFIED && sniffedContentType != officialType)
+-        contentType = String::fromLatin1(sniffedContentType.data());
+-    else
+-        contentType = String::fromLatin1(officialType);
++    if (!sniffedContentType.isNull() && m_httpStatusCode != SOUP_STATUS_NOT_MODIFIED && sniffedContentType != officialType) {
++        // The content sniffer can only make a useful guess when there is actual
++        // content; for an empty body it falls back to a "text/plain" guess that
++        // would downgrade a server-declared script MIME type and break ES module
++        // loading (ScriptModuleLoader rejects non-JS MIME types). NVIDIA's login
++        // CDN transiently serves 0-byte JS chunks during deploys, so keep the
++        // declared script type for empty-body responses and let dynamic
++        // import() succeed instead of aborting the SPA boot.
++        String official = String::fromLatin1(officialType);
++        if (MIMETypeRegistry::isSupportedJavaScriptMIMEType(official) && !soup_message_headers_get_content_length(responseHeaders))
++            contentType = official;
++        else
++            contentType = String::fromLatin1(sniffedContentType.data());
++    } else
++        contentType = String::fromLatin1(officialType);
+     setMimeType(extractMIMETypeFromMediaType(contentType));
+     if (m_mimeType.isEmpty() && m_httpStatusCode != SOUP_STATUS_NOT_MODIFIED)
+         setMimeType(MIMETypeRegistry::mimeTypeForPath(m_url.path()));

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+#
+# Run the natively-built ImWebBrowser on the development PC without needing an
+# externally exported LD_LIBRARY_PATH.
+#
+# The WPE stack (libWPEWebKit, libWPEBackend-fdo, libwpe) lives in a private
+# prefix (~/wpe-new) that is not on the system linker path. wpebackend-fdo is
+# dlopen()ed by libwpe at runtime and the WebKit helper processes
+# (WPEWebProcess, WPENetworkProcess, ...) run as separate executables, so the
+# binary's own RPATH is not enough. Exporting LD_LIBRARY_PATH here makes all of
+# them resolve the private prefix.
+#
+# Usage:
+#   ./run [browser args...]     e.g. ./run --kiosk https://example.com
+#
+# Just forwards whatever it is given to build/imwebbrowser.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+: "${IMWB_PREFIX:=/home/mint/wpe-new}"
+: "${IMWB_BUILD_DIR:=build}"
+
+if [ ! -x "$IMWB_BUILD_DIR/imwebbrowser" ]; then
+    echo "imwebbrowser not built yet — run: cmake -B $IMWB_BUILD_DIR && cmake --build $IMWB_BUILD_DIR" >&2
+    exit 1
+fi
+
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+
+# Prepend the private WPE lib dirs so dlopen'd backends + WebKit helper
+# processes resolve them before (or instead of) any system copies.
+export LD_LIBRARY_PATH="$IMWB_PREFIX/lib:$IMWB_PREFIX/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Optional preferred GStreamer decoder, mirrored from the IMWB_VIDEO_DECODER
+# CMake flag (empty = GStreamer default). Must be exported here too so WebKit's
+# helper processes (WPEWebProcess, WPENetworkProcess) see it as well, not just
+# the main binary. e.g. IMWB_VIDEO_DECODER=v4l2slh264dec on the STM32MP257F.
+if [ -n "${IMWB_VIDEO_DECODER:-}" ]; then
+    export GST_PLUGIN_FEATURE_RANK="${IMWB_VIDEO_DECODER}:MAX"
+fi
+
+exec "$IMWB_BUILD_DIR/imwebbrowser" "$@"
