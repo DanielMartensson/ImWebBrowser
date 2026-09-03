@@ -24,6 +24,12 @@
 #if defined(ENABLE_GSTREAMER) && defined(IMWB_DEBUG_GUARDRAIL)
 #include <gst/gst.h>  // debug-only hardware guardrail (see the decoder check)
 #endif
+#ifdef IMWB_DEBUG_GUARDRAIL
+#include <chrono>  // debug-only runtime hardware watchdog (see main)
+#include <dirent.h>
+#include <map>
+#include <thread>
+#endif
 
 // Captured once at startup; forwarded input events run per frame.
 static const bool kDebugInput = g_getenv("IMWB_DEBUG_INPUT") != nullptr;
@@ -154,6 +160,109 @@ int main(int argc, char** argv)
 #endif  // IMWB_DEBUG_GUARDRAIL
     }
 #endif  // ENABLE_GSTREAMER && IMWB_VIDEO_DECODER
+
+#ifdef IMWB_DEBUG_GUARDRAIL
+    // Layer 3 — runtime hardware watchdog (debug only). Layers 1-2 above check
+    // the GL context and the decoder configuration once at startup; this one
+    // catches fallbacks that happen DURING a session. WebKit's sandboxed
+    // helper processes (WPEWebProcess / WPEGPUProcess / WPENetworkProcess)
+    // render, composite and decode through the GPU — if one of them saturates
+    // a CPU core for a sustained stretch, something fell back to software:
+    //   - /dev/dri invisible inside the bubblewrap sandbox -> Mesa llvmpipe
+    //     compositing/WebGL (the "WebGL fish tank crawls" case)
+    //   - decodebin picking avdec for a codec this GPU cannot decode
+    //     (the "YouTube VP9 on Haswell" case)
+    // One aggregated banner line + stderr, reported once per run. Plain
+    // /proc polling, no locks (single writer) — diagnostics-grade on purpose;
+    // a plain busy JavaScript page can also trip it, hence "likely".
+    {
+        std::thread([] {
+            struct Prev {
+                unsigned long long utime = 0, stime = 0;
+                bool seen = false;
+            };
+            std::map<int, Prev> prev;
+            const double ticks = double(sysconf(_SC_CLK_TCK));
+            int hot = 0;
+            bool reported = false;
+            while (!reported) {
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                double worst = 0.0;
+                int worstPid = 0;
+                char worstName[32] = "";
+                DIR* dir = opendir("/proc");
+                if (!dir)
+                    continue;
+                while (dirent* de = readdir(dir)) {
+                    const int pid = atoi(de->d_name);
+                    if (pid <= 0)
+                        continue;
+                    char path[64], comm[64] = "";
+                    std::snprintf(path, sizeof(path), "/proc/%d/comm", pid);
+                    if (FILE* f = fopen(path, "r")) {
+                        if (!fgets(comm, sizeof(comm), f))
+                            comm[0] = '\0';
+                        fclose(f);
+                    }
+                    if (std::strncmp(comm, "WPE", 3) != 0)  // WPE* helper processes
+                        continue;
+                    // /proc/<pid>/stat: pid (comm) state ... utime stime ...
+                    // comm can contain spaces, so parse after the last ')'.
+                    std::snprintf(path, sizeof(path), "/proc/%d/stat", pid);
+                    FILE* f = fopen(path, "r");
+                    if (!f)
+                        continue;
+                    char stat[512];
+                    const bool got = fgets(stat, sizeof(stat), f) != nullptr;
+                    fclose(f);
+                    if (!got)
+                        continue;
+                    const char* rp = std::strrchr(stat, ')');
+                    unsigned long long ut = 0, st = 0;
+                    if (!rp || std::sscanf(rp + 2,
+                                          "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %llu %llu",
+                                          &ut, &st) != 2)
+                        continue;
+                    Prev& pr = prev[pid];
+                    const unsigned long long now = ut + st;
+                    if (pr.seen) {
+                        const double cpuPct = double(now - (pr.utime + pr.stime)) / ticks / 2.0 * 100.0;
+                        if (cpuPct > worst) {
+                            worst = cpuPct;
+                            worstPid = pid;
+                            std::snprintf(worstName, sizeof(worstName), "%s", comm);
+                        }
+                    }
+                    pr.utime = ut;
+                    pr.stime = st;
+                    pr.seen = true;
+                }
+                closedir(dir);
+                if (worst >= 85.0)
+                    ++hot;
+                else
+                    hot = 0;
+                if (hot >= 3) {
+                    reported = true;
+                    char text[192];
+                    // Strip the trailing newline from comm for the banner.
+                    for (char* c = worstName; *c; ++c)
+                        if (*c == '\n')
+                            *c = '\0';
+                    std::snprintf(text, sizeof(text), "WebKit %s at %.0f%% CPU - software render/decode likely",
+                                  worstName, worst);
+                    ui::addHardwareWarning(text);
+                    std::fprintf(stderr,
+                                 "\n*** RUNTIME FALLBACK SUSPECTED: %s (pid %d) at %.0f%% CPU for ~6s ***\n"
+                                 "    All GPU work should run without saturating a core. Likely causes:\n"
+                                 "    the sandbox lost /dev/dri (llvmpipe compositing/WebGL) or decodebin\n"
+                                 "    picked a software decoder (avdec) for a codec this GPU cannot decode.\n\n",
+                                 worstName, worstPid, worst);
+                }
+            }
+        }).detach();
+    }
+#endif  // IMWB_DEBUG_GUARDRAIL
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "error: SDL_Init failed: %s\n", SDL_GetError());

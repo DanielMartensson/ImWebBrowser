@@ -223,13 +223,24 @@ plus accessibility and browsing toggles — see the header of
 Debug builds compile in hardware-only guardrails that make every silent
 software fallback loud. Exactly **one** red banner aggregates the findings
 (no pop-up spam), and release builds compile the checks out entirely —
-empty functions, no extra link dependency:
+empty functions, no extra link dependency. Three layers:
 
-- GL renderer is a CPU rasterizer (`llvmpipe`/`softpipe`/`swrast`/SwiftShader)
-  → `*** HARDWARE-ONLY VIOLATION ***` on stderr + banner ("SOFTWARE RENDERING").
-- The configured hardware decoder is missing from the GStreamer registry, or
-  `avdec_h264` outranks it → `*** HW DECODER MISSING / OUTRANKED ***`
-  (WebRTC and `<video>` would software-decode).
+1. **GL context at startup** — the renderer string is checked for CPU
+   rasterizers (`llvmpipe`/`softpipe`/`swrast`/SwiftShader) →
+   `*** HARDWARE-ONLY VIOLATION ***` ("SOFTWARE RENDERING"). A machine with
+   no GPU driver at all never gets this far: EGL context creation fails
+   with a fatal error instead.
+2. **Decoder configuration at startup** — the configured hardware decoder
+   must exist in the GStreamer registry and outrank `avdec_h264`, else
+   `*** HW DECODER MISSING / OUTRANKED ***` (WebRTC and `<video>` would
+   software-decode from the first frame).
+3. **Runtime watchdog** — a background thread samples the CPU usage of
+   WebKit's helper processes (`WPEWebProcess`/`WPEGPUProcess`) every 2 s;
+   if one saturates a core for ~6 s it reports
+   `*** RUNTIME FALLBACK SUSPECTED ***`. This catches fallbacks that happen
+   mid-session: a WebGL app (the fish tank) crawling on llvmpipe because the
+   sandbox lost `/dev/dri`, or YouTube decoding VP9 in `avdec` because the
+   GPU has no VP9 hardware decoder.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Debug -DIMWB_VIDEO_DECODER=vah264dec

@@ -307,6 +307,7 @@ build_gstreamer() {
         --prefix="$PREFIX" \
         -Dbase=enabled -Dgood=enabled -Dbad=enabled -Dugly=disabled -Dlibav=enabled -Dwebrtc=enabled \
         -Dgst-plugins-bad:va=enabled \
+        -Dgst-plugins-bad:webrtcdsp=disabled \
         -Dgst-plugins-bad:tests=disabled -Dtests=disabled -Dexamples=disabled \
         -Dbenchmarks=disabled -Dgtk_doc=disabled "$@"
     meson compile -C "$b" -j"$JOBS"
