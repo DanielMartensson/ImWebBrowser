@@ -21,6 +21,13 @@
 #   ./setup.sh --jobs 4                 # parallel build
 #   ./setup.sh --with-sdl3/--skip-sdl3  # include/exclude a dependency
 #
+#   # Hardware / feature options (passed on to the ImWebBrowser CMake build):
+#   ./setup.sh --vulkan                 # Vulkan render backend (default: OpenGL ES 3)
+#   ./setup.sh --decoder=vah264dec      # bake in a default GStreamer decoder
+#   ./setup.sh --media-hw-types='video/mp4; codecs="avc1"'
+#   ./setup.sh --gfn-input              # GeForce NOW input bridge (off by default)
+#   ./setup.sh --cmake="-DENABLE_WEBRTC=OFF -DENABLE_DEVELOPER_EXTRAS=ON"
+#
 # Sources are fetched automatically when missing — re-running reuses both the
 # downloaded sources and the build caches, so there are no download/build mode
 # flags to think about.
@@ -42,6 +49,7 @@ set -euo pipefail
 PREFIX="${IMWB_PREFIX:-$PWD/deps/install}"          # where everything lands
 SRC_DIR="${IMWB_SRC_DIR:-$PWD/deps/src}"            # downloaded + extracted source
 JOBS="$(nproc)"
+EXTRA_CMAKE_ARGS=""   # extra defines for the final ImWebBrowser CMake build
 # Dependency enable/disable switches (all ON by default; the two needed for
 # GeForce Now are wpewebkit + gstreamer, both mandatory).
 WITH_SDL3=1
@@ -55,6 +63,13 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --prefix=*)     PREFIX="${1#*=}" ;;
         --jobs=*)       JOBS="${1#*=}" ;;
+        # Hardware / feature options — forwarded to the ImWebBrowser CMake
+        # build (setup.sh runs the project as a plain CMake project last).
+        --vulkan)       EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DIMWB_BACKEND_VULKAN=ON" ;;
+        --decoder=*)    EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DIMWB_VIDEO_DECODER=${1#*=}" ;;
+        --media-hw-types=*) EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DIMWB_MEDIA_HW_TYPES=${1#*=}" ;;
+        --gfn-input)    EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DENABLE_GFN_INPUT_BRIDGE=ON" ;;
+        --cmake=*)      EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS ${1#*=}" ;;
         --with-sdl3)    WITH_SDL3=1 ;;
         --skip-sdl3)    WITH_SDL3=0 ;;
         --with-libwpe)  WITH_LIBWPE=1 ;;
@@ -323,11 +338,17 @@ build_wpewebkit() {
 build_imwebbrowser() {
     local root="$PWD"
     say "ImWebBrowser"
+    # The project itself is a plain CMake project — this is just
+    # cmake -S . -B .deps/build-imwb with the bundled prefix on the search
+    # path, plus any hardware/feature defines from the command line.
+    # (Vulkan auto-disables the GLES backend inside CMake when both are set.)
     rm -rf "$root/.deps/build-imwb"
+    # shellcheck disable=SC2086 # EXTRA_CMAKE_ARGS is intentionally word-split
     cmake -S "$root" -B "$root/.deps/build-imwb" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$PREFIX" \
-        -DIMWB_BACKEND_OPENGL_ES=ON
+        -DIMWB_BACKEND_OPENGL_ES=ON \
+        $EXTRA_CMAKE_ARGS
     cmake --build "$root/.deps/build-imwb" -j"$JOBS"
     run_install "$root/.deps/build-imwb"
 }

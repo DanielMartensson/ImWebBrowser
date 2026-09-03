@@ -136,14 +136,58 @@ Four upstream patches are applied by `setup.sh` (via `git apply`, idempotent):
 | `gstreamer-webrtcbin-audio-opus-ptmap-fallback.patch` | Opus fallback in webrtcbin PT mapping |
 | `gstreamer-webrtcbin-balanced-to-maxbundle.patch` | BUNDLE085/MAXBUNDLE for GFN's SDP |
 
-## Hardware decoding (STM32MP257F)
+## Hardware acceleration & build options
 
-GeForce Now and `<video>` decode through GStreamer decodebin, which picks the
-decoder by rank. On the STM32MP257F this gives 1080p60 via the VPU:
+The project itself is a plain **CMake project** — `setup.sh` runs it as the
+last step of its dependency build, and every option below is an ordinary
+CMake define that also works standalone:
 
 ```bash
+cmake -B build -DIMWB_BACKEND_VULKAN=ON -DIMWB_VIDEO_DECODER=v4l2slh264dec
+```
+
+### Render backend (GPU)
+
+| CMake option | Default | Meaning |
+|---|---|---|
+| `IMWB_BACKEND_OPENGL_ES` | `ON` | OpenGL ES 3 context via SDL3 GL |
+| `IMWB_BACKEND_VULKAN` | `OFF` | Vulkan: dma-buf import + swapchain (auto-disables GLES) |
+
+```bash
+./setup.sh --vulkan
+```
+
+### Video decoding
+
+| Knob | Where | Meaning |
+|---|---|---|
+| `IMWB_VIDEO_DECODER` | CMake (baked default) **and** runtime env | Boost one GStreamer decoder to MAX rank |
+| `IMWB_MEDIA_HW_TYPES` | CMake | Advertise hardware-decodable MIME types to the page |
+
+```bash
+./setup.sh --decoder=v4l2slh264dec --media-hw-types='video/mp4; codecs="avc1"'
 IMWB_VIDEO_DECODER=v4l2slh264dec ./run.sh --kiosk "https://play.geforcenow.com/..."
 ```
+
+Decoder examples: `v4l2slh264dec` (STM32MP257F VPU, 1080p60),
+`vah264dec` (Intel/AMD VAAPI), `avdec_h264` (software fallback).
+
+### Any other CMake option
+
+Everything else passes straight through:
+
+```bash
+./setup.sh --cmake="-DENABLE_GFN_INPUT_BRIDGE=ON -DENABLE_DEVELOPER_EXTRAS=ON"
+./setup.sh --gfn-input          # shortcut for the GeForce NOW input bridge
+```
+
+Feature toggles (ON/OFF unless noted): `ENABLE_WEBRTC`, `ENABLE_MEDIA`,
+`ENABLE_AUDIO`, `ENABLE_AUTOPLAY`, `ENABLE_ENCRYPTED_MEDIA` (Widevine/EME),
+`ENABLE_WEBGL`, `ENABLE_2D_CANVAS`, `ENABLE_JAVASCRIPT`,
+`ENABLE_MEDIA_CAPABILITIES`, `ENABLE_DEVELOPER_EXTRAS` (Web Inspector),
+`ENABLE_BENCHMARK_HARNESS`, `ENABLE_GFN_INPUT_BRIDGE` (OFF by default),
+plus accessibility and browsing toggles — see the header of
+`CMakeLists.txt` for the full annotated list.
 
 ## Architecture (short)
 
