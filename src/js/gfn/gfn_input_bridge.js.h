@@ -1,4 +1,4 @@
-// Generated from src/js/gfn_input_bridge.js — do not edit by hand.
+// Generated from src/js/gfn/gfn_input_bridge.js — do not edit by hand.
 #pragma once
 static const char gfnInputBridgeJS[] =
 R"GFNJS(
