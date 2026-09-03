@@ -21,6 +21,9 @@
 #include <vector>
 #include <unistd.h>
 #include <cstring>
+#if defined(ENABLE_GSTREAMER) && defined(IMWB_DEBUG_GUARDRAIL)
+#include <gst/gst.h>  // debug-only hardware guardrail (see the decoder check)
+#endif
 
 // Captured once at startup; forwarded input events run per frame.
 static const bool kDebugInput = g_getenv("IMWB_DEBUG_INPUT") != nullptr;
@@ -111,6 +114,44 @@ int main(int argc, char** argv)
         rank += ":MAX";
         g_setenv("GST_PLUGIN_FEATURE_RANK", rank.c_str(), TRUE);
         std::fprintf(stderr, "gstreamer: forcing decoder '%s' to MAX rank\n", IMWB_VIDEO_DECODER);
+
+#ifdef IMWB_DEBUG_GUARDRAIL
+        // Debug-only hardware guardrail: the configured hardware decoder must
+        // actually exist in this prefix AND outrank the software fallback —
+        // otherwise WebRTC (GeForce Now) and <video> silently decode in
+        // software and eat the CPU. gst_init() here only reads the registry,
+        // it is cheap; release builds compile none of this.
+        gst_init(nullptr, nullptr);
+        if (GstElementFactory* hwf = gst_element_factory_find(IMWB_VIDEO_DECODER)) {
+            GstElementFactory* swf = gst_element_factory_find("avdec_h264");
+            const guint hwRank = gst_plugin_feature_get_rank(GST_PLUGIN_FEATURE(hwf));
+            const guint swRank = swf ? gst_plugin_feature_get_rank(GST_PLUGIN_FEATURE(swf)) : 0;
+            if (swf && swRank >= hwRank) {
+                char text[192];
+                std::snprintf(text, sizeof(text),
+                              "decoder %s (rank %u) does not outrank avdec_h264 (rank %u)",
+                              IMWB_VIDEO_DECODER, hwRank, swRank);
+                ui::addHardwareWarning(text);
+                std::fprintf(stderr,
+                             "\n*** HW DECODER OUTRANKED: '%s' has rank %u but avdec_h264 has %u ***\n"
+                             "    WebRTC/<video> will software-decode. Boost the hardware decoder\n"
+                             "    (IMWB_VIDEO_DECODER) or fix its plugin.\n\n",
+                             IMWB_VIDEO_DECODER, hwRank, swRank);
+            }
+            gst_object_unref(hwf);
+            if (swf)
+                gst_object_unref(swf);
+        } else {
+            char text[192];
+            std::snprintf(text, sizeof(text), "decoder %s NOT FOUND - software decode", IMWB_VIDEO_DECODER);
+            ui::addHardwareWarning(text);
+            std::fprintf(stderr,
+                         "\n*** HW DECODER MISSING: '%s' is not in the GStreamer registry ***\n"
+                         "    WebRTC/<video> will software-decode (avdec). Install/build the\n"
+                     "    hardware decoder plugin (va, v4l2codecs) into this prefix.\n\n",
+                         IMWB_VIDEO_DECODER);
+        }
+#endif  // IMWB_DEBUG_GUARDRAIL
     }
 #endif  // ENABLE_GSTREAMER && IMWB_VIDEO_DECODER
 
@@ -181,6 +222,13 @@ int main(int argc, char** argv)
         return 1;
     }
     SDL_GL_SetSwapInterval(g_getenv("IMWB_NOVSYNC") ? 0 : 1);  // vsync unless disabled for testing
+
+    // Debug-only: catch a CPU rasterizer (llvmpipe/...) behind the GL context
+    // right away and make it loud (stderr + banner). No-op in release.
+#ifdef IMWB_DEBUG_GUARDRAIL
+    if (const GLubyte* r = glGetString(GL_RENDERER))
+        ui::reportRenderer(reinterpret_cast<const char*>(r));
+#endif
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -508,6 +556,7 @@ int main(int argc, char** argv)
                 setKiosk(!kiosk);
             ui::drawStatsOverlay(showStats, browser);
         }
+        ui::drawHardwareWarnings();  // debug builds: red banner on software fallback
         ImGui::Render();
         syncTextInput(window, ImGui::GetIO());
         vp.drawFrame(pixW, pixH);
@@ -598,6 +647,7 @@ int main(int argc, char** argv)
             setKiosk(!kiosk);
 
         ui::drawStatsOverlay(showStats, browser);
+        ui::drawHardwareWarnings();  // debug builds: red banner on software fallback
 
         ImGui::Render();
         syncTextInput(window, ImGui::GetIO());

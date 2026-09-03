@@ -94,10 +94,16 @@ LIBDIR="lib"
 
 # ---------------------------------------------------------------------------
 # Environment so later packages see earlier ones (pkg-config drives the build).
+# NOTE: deliberately NOT inheriting PKG_CONFIG_PATH / CMAKE_PREFIX_PATH /
+# LD_LIBRARY_PATH from the caller — a polluted environment (e.g. some other
+# private prefix on this machine) leaks into dependency lookups and produces
+# cross-prefix header mismatches that are very painful to debug. The system
+# defaults are still reachable: pkg-config/ldconfig always fall back to their
+# built-in paths after these.
 # ---------------------------------------------------------------------------
-export PKG_CONFIG_PATH="$PREFIX/$LIBDIR/pkgconfig:$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-export CMAKE_PREFIX_PATH="$PREFIX${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
-export LD_LIBRARY_PATH="$PREFIX/$LIBDIR:$PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export PKG_CONFIG_PATH="$PREFIX/$LIBDIR/pkgconfig:$PREFIX/lib/pkgconfig"
+export CMAKE_PREFIX_PATH="$PREFIX"
+export LD_LIBRARY_PATH="$PREFIX/$LIBDIR:$PREFIX/lib"
 export PATH="$PREFIX/bin:$PATH"
 
 # ---------------------------------------------------------------------------
@@ -160,6 +166,12 @@ fetch_gstreamer() {
 # so the script is idempotent.
 apply_patch() {
     local srcdir="$1" patch="$2"
+    # Absolutize the patch path first: we `cd` into $srcdir below, which would
+    # break a repo-relative path like patches/foo.patch.
+    case "$patch" in
+        /*) ;;
+        *)  patch="$PWD/$patch" ;;
+    esac
     if [ ! -f "$patch" ]; then
         echo "   [warn] patch not found: $patch" >&2
         return 1
@@ -288,10 +300,13 @@ build_gstreamer() {
     apply_patch "$d" "patches/gstreamer-webrtcbin-audio-opus-ptmap-fallback.patch"
     apply_patch "$d" "patches/gstreamer-webrtcbin-balanced-to-maxbundle.patch"
     local b="$d/build"
+    # NOTE: -Dva must be namespaced (-Dgst-plugins-bad:va=...) — the option
+    # lives in the subproject, unlike e.g. -Dwebrtc which the monorepo
+    # re-exports at the top level.
     meson setup "$b" "$d" \
         --prefix="$PREFIX" \
         -Dbase=enabled -Dgood=enabled -Dbad=enabled -Dugly=disabled -Dlibav=enabled -Dwebrtc=enabled \
-        -Dva=enabled \
+        -Dgst-plugins-bad:va=enabled \
         -Dgst-plugins-bad:tests=disabled -Dtests=disabled -Dexamples=disabled \
         -Dbenchmarks=disabled -Dgtk_doc=disabled "$@"
     meson compile -C "$b" -j"$JOBS"

@@ -218,6 +218,48 @@ Feature toggles (ON/OFF unless noted): `ENABLE_WEBRTC`, `ENABLE_MEDIA`,
 plus accessibility and browsing toggles — see the header of
 `CMakeLists.txt` for the full annotated list.
 
+### Debug guardrails — `CMAKE_BUILD_TYPE=Debug` only
+
+Debug builds compile in hardware-only guardrails that make every silent
+software fallback loud. Exactly **one** red banner aggregates the findings
+(no pop-up spam), and release builds compile the checks out entirely —
+empty functions, no extra link dependency:
+
+- GL renderer is a CPU rasterizer (`llvmpipe`/`softpipe`/`swrast`/SwiftShader)
+  → `*** HARDWARE-ONLY VIOLATION ***` on stderr + banner ("SOFTWARE RENDERING").
+- The configured hardware decoder is missing from the GStreamer registry, or
+  `avdec_h264` outranks it → `*** HW DECODER MISSING / OUTRANKED ***`
+  (WebRTC and `<video>` would software-decode).
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Debug -DIMWB_VIDEO_DECODER=vah264dec
+```
+
+## Keeping the CPU idle
+
+The whole design goal: the GPU/VPU do the heavy lifting, the CPU only
+orchestrates — that is what makes 1080p streaming lag-free on the
+STM32MP257F.
+
+| Work | Where it runs |
+|---|---|
+| Page rendering + compositing | GPU (EGL; frames exported as dmabuf → GL texture blit, zero-copy) |
+| H.264 video decode | **Hardware**: VAAPI on x86 (`vah264dec`), the SoC VPU on STM32MP257F (`v4l2slh264dec`) |
+| JavaScript | CPU, JIT-compiled |
+| Audio decode | CPU (cheap), output through PipeWire |
+
+Levers to keep it that way:
+
+- **Boost the hardware decoder** — `--decoder=` at build time or
+  `IMWB_VIDEO_DECODER` per launch (MAX rank wins over software decoders).
+- **Advertise hardware codecs to sites** —
+  `--media-hw-types='video/mp4; codecs="avc1"'` makes sites pick H.264.
+  Without it a site may choose VP9/AV1, which older iGPUs (e.g. Haswell)
+  and the STM32MP2 VPU cannot decode in hardware — decode would silently
+  fall back to software and eat the CPU.
+- **Trim animations/caches on very weak CPUs** —
+  `--cmake="-DENABLE_SMOOTH_SCROLLING=OFF -DENABLE_PAGE_CACHE=OFF"`.
+
 ## Architecture (short)
 
 ```

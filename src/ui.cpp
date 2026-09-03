@@ -113,4 +113,87 @@ void drawStatsOverlay(bool show, const Browser& b)
     ImGui::End();
 }
 
+// ---------------------------------------------------------------------------
+// Hardware guardrails — DEBUG BUILDS ONLY (empty bodies in release).
+//
+// The browser is hardware-only by principle: rendering must be a real GPU
+// context and video must decode on hardware. These catch the silent software
+// fallbacks and make them loud (stderr + on-screen banner): a CPU rasterizer
+// behind the GL context (Mesa llvmpipe/softpipe, swrast, SwiftShader) and a
+// configured hardware decoder that is missing or outranked by avdec.
+// ---------------------------------------------------------------------------
+#ifdef IMWB_DEBUG_GUARDRAIL
+
+namespace {
+constexpr int kMaxWarnings = 4;
+char gWarnings[kMaxWarnings][192];
+int gWarningCount = 0;
+
+bool containsToken(const char* haystack, const char* needle)
+{
+    return haystack && needle && strcasestr(haystack, needle) != nullptr;
+}
+}  // namespace
+
+void reportRenderer(const char* renderer)
+{
+    if (!renderer || !renderer[0])
+        return;
+    if (containsToken(renderer, "llvmpipe") || containsToken(renderer, "softpipe")
+        || containsToken(renderer, "swrast") || containsToken(renderer, "swiftshader")) {
+        char text[sizeof(gWarnings[0])];
+        std::snprintf(text, sizeof(text), "SOFTWARE RENDERING (%s)", renderer);
+        addHardwareWarning(text);
+        std::fprintf(stderr,
+                     "\n*** HARDWARE-ONLY VIOLATION: GL renderer is '%s' (CPU rasterizer) ***\n"
+                     "    ImWebBrowser requires a real GPU context (Mesa DRI). The UI blit,\n"
+                     "    WebKit compositing and WebGL are ALL running on the CPU now.\n"
+                     "    Fix the GPU driver instead of running like this.\n\n",
+                     renderer);
+    }
+}
+
+void addHardwareWarning(const char* text)
+{
+    if (!text || gWarningCount >= kMaxWarnings)
+        return;
+    // ONE aggregated popup, never spam: skip exact duplicates — every check
+    // runs once at startup and the single window below just re-draws the
+    // same stable list each frame (no new windows, no flashing).
+    for (int i = 0; i < gWarningCount; ++i)
+        if (std::strncmp(gWarnings[i], text, sizeof(gWarnings[0])) == 0)
+            return;
+    std::snprintf(gWarnings[gWarningCount], sizeof(gWarnings[0]), "%s", text);
+    ++gWarningCount;
+}
+
+void drawHardwareWarnings()
+{
+    if (!gWarningCount)
+        return;
+    // A single fixed banner window top-centre; all collected fallbacks are
+    // listed inside it. It never multiplies and never repeats itself.
+    const ImGuiIO& io = ImGui::GetIO();
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, kToolbarHeight + 30.f),
+                            ImGuiCond_Always, ImVec2(0.5f, 0.f));
+    ImGui::SetNextWindowBgAlpha(0.85f);
+    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize |
+                                       ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                                       ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav |
+                                       ImGuiWindowFlags_NoFocusOnAppearing;
+    ImGui::Begin("##hw-warnings", nullptr, flags);
+    for (int i = 0; i < gWarningCount; ++i)
+        ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f), "%s", gWarnings[i]);
+    ImGui::TextDisabled("hardware-only: debug guardrail");
+    ImGui::End();
+}
+
+#else  // release pays nothing
+
+void reportRenderer(const char*) {}
+void addHardwareWarning(const char*) {}
+void drawHardwareWarnings() {}
+
+#endif  // IMWB_DEBUG_GUARDRAIL
+
 }  // namespace ui

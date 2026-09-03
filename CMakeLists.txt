@@ -202,6 +202,17 @@ target_link_libraries(imwebbrowser PRIVATE
     PkgConfig::EGL
 )
 
+# Debug-only hardware guardrails (src/main.cpp + src/ui.cpp): loud messages
+# when rendering or decoding silently falls back to software. Compiled AND
+# linked only for debug builds — release pays nothing (empty functions, no
+# extra DT_NEEDED). The define and the GStreamer link move together.
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(imwebbrowser PRIVATE IMWB_DEBUG_GUARDRAIL)
+    if(ENABLE_GSTREAMER)
+        target_link_libraries(imwebbrowser PRIVATE PkgConfig::GST)
+    endif()
+endif()
+
 # ---------------------------------------------------------------------------
 # Install.
 # ---------------------------------------------------------------------------
