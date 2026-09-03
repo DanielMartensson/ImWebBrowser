@@ -13,7 +13,7 @@
 #include <cstring>
 
 #if ENABLE_GFN_INPUT_BRIDGE
-#include "gfn_input_bridge.js.h"
+#include "js/gfn_input_bridge.js.h"
 #endif
 
 // ---------------------------------------------------------------------------

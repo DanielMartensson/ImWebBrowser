@@ -1,4 +1,4 @@
-// Generated from src/gfn_input_bridge.js — do not edit by hand.
+// Generated from src/js/gfn_input_bridge.js — do not edit by hand.
 #pragma once
 static const char gfnInputBridgeJS[] =
 R"GFNJS(
@@ -121,14 +121,33 @@ R"GFNJS(
 
         // The stream PC is the one carrying media receivers (the mall/queue PC
         // has none). Never open input channels on a receiver-less PC, or we
-        // lock the bridge onto the wrong connection forever.
+        // lock the bridge onto the wrong connection forever. GFN rebuilds its
+        // streaming PC when the network path changes (e.g. cable plugged in
+        // mid-session); a dead PC still lists its old receivers, so only
+        // consider live connection states and strongly prefer "connected".
         function streamPc() {
-            var best = null, bestRecv = -1;
+            var best = null, bestScore = -1;
             bridges.pcs.forEach(function (pc) {
+                var st = "";
+                try { st = pc.connectionState || ""; } catch (e) {}
+                if (st === "failed" || st === "disconnected" || st === "closed") return;
                 var r = pc && pc.getReceivers ? pc.getReceivers().length : 0;
-                if (r > bestRecv) { bestRecv = r; best = pc; }
+                if (r <= 0) return;
+                var score = r + (st === "connected" ? 1000 : 0);
+                if (score > bestScore) { bestScore = score; best = pc; }
             });
-            return bestRecv > 0 ? best : null;
+            return bestScore > 0 ? best : null;
+        }
+
+        // Drop the channel binding when the owning PC or its channels die, so
+        // arm() can re-open input channels on the next live stream PC.
+        function releaseChannels(pc) {
+            if (bridge.channelPc !== pc) return;
+            bridge.channelPc = null;
+            bridge.inputChannel = null;
+            bridge.prInputChannel = null;
+            bridge.inputReady = false;
+            L("released channels from dead stream pc");
         }
 
         function openChannels(pc) {
@@ -143,17 +162,41 @@ R"GFNJS(
                 bridge.inputChannel.onopen = function () { L("input_channel_v1 OPEN"); };
                 bridge.inputChannel.onmessage = onInputChannelMessage;
                 bridge.inputChannel.onerror = function (e) { L("input_channel_v1 error", e && e.message); };
-                bridge.inputChannel.onclose = function () { L("input_channel_v1 closed"); };
+                bridge.inputChannel.onclose = function () { L("input_channel_v1 closed"); releaseChannels(pc); };
 
                 bridge.prInputChannel = pc.createDataChannel("input_channel_partially_reliable", { ordered: false, maxPacketLifeTime: 200 });
                 bridge.prInputChannel.binaryType = "arraybuffer";
                 bridge.prInputChannel.onopen = function () { L("input_channel_partially_reliable OPEN"); };
                 bridge.prInputChannel.onerror = function (e) { L("pr channel error", e && e.message); };
-                bridge.prInputChannel.onclose = function () { L("pr channel closed"); };
+                bridge.prInputChannel.onclose = function () { L("pr channel closed"); releaseChannels(pc); };
                 L("created input channels on stream pc (receivers=" + recv + ")");
             } catch (e) {
                 L("openChannels error", e && e.message);
             }
+        }
+
+        // GFN starts the game's stream media element muted and its own unmute
+        // path never fires in this WebKit build, so the WebProcess audio sink
+        // stays muted at the PulseAudio/PipeWire level (no game audio heard).
+        // Unmute only elements playing a live MediaStream (the game stream);
+        // the mall's http-sourced trailer videos stay muted.
+        function unmuteStreamAudio() {
+            try {
+                var els = document.querySelectorAll("video, audio");
+                for (var i = 0; i < els.length; i++) {
+                    var e = els[i];
+                    var so = e.srcObject;
+                    if (!so || !(so instanceof MediaStream)) continue;
+                    var live = false;
+                    so.getAudioTracks().forEach(function (t) { if (t.readyState === "live") live = true; });
+                    if (!live) continue;
+                    if (e.muted) {
+                        e.muted = false;
+                        if (e.volume === 0) e.volume = 1;
+                        L("unmuted stream element " + e.tagName + " (live audio tracks)");
+                    }
+                }
+            } catch (e) {}
         }
 
         // ---- public send API ----
@@ -219,6 +262,7 @@ R"GFNJS(
             // arm(): attempt channels on the stream PC (the one with media receivers)
             arm: function () {
                 L("arm() called, pcCount=" + bridges.pcs.size + ", ready=" + bridge.inputReady);
+                unmuteStreamAudio();
                 var pc = streamPc();
                 if (!pc) { L("no stream pc yet (no receivers)"); return; }
                 openChannels(pc);
@@ -237,11 +281,14 @@ R"GFNJS(
             var pc = new (Function.prototype.bind.apply(OrigPC, [null].concat(Array.prototype.slice.call(arguments))))();
             try {
                 pc.addEventListener("connectionstatechange", function () {
-                    if (pc.connectionState === "connected") {
+                    var st = pc.connectionState;
+                    if (st === "connected") {
                         // pick this as stream pc when it has media receivers
                         var recv = pc.getReceivers ? pc.getReceivers().length : 0;
                         L("pc connected receivers=" + recv + " channels=" + !!bridge.inputChannel);
                     }
+                    if (st === "failed" || st === "disconnected" || st === "closed")
+                        releaseChannels(pc);
                 });
             } catch (e) {}
             bridges.pcs.add(pc);
@@ -253,6 +300,91 @@ R"GFNJS(
         createPC.prototype = OrigPC.prototype;
         RTCPeerConnection = createPC;
         window.RTCPeerConnection = createPC;
+
+        // ---- Stuck-shutdown watchdog ----
+        // GFN's cloud rig teardown (the "Steam is closing" screen) sometimes
+        // never completes in this WebKit build: the NVST signaling websocket
+        // retries its handshake forever and the page sits on the closing
+        // screen. Steam itself is closed cloud-side and nothing we do makes it
+        // faster, but once the session is fully dead (no connected stream pc
+        // and no live media tracks) for a sustained period, navigate back to
+        // the mall so the kiosk recovers on its own instead of hanging.
+        var sawLiveSession = false;
+        var streamDeadSince = 0;
+        var WATCHDOG_MS = 45000;
+        function sessionAlive() {
+            var alive = false;
+            bridges.pcs.forEach(function (pc) {
+                try {
+                    if (pc.connectionState === "connected" && pc.getReceivers && pc.getReceivers().length > 0) alive = true;
+                } catch (e) {}
+            });
+            var els = document.querySelectorAll("video, audio");
+            for (var i = 0; i < els.length; i++) {
+                var so = els[i].srcObject;
+                if (so && so instanceof MediaStream) {
+                    so.getTracks().forEach(function (t) { if (t.readyState === "live") alive = true; });
+                }
+            }
+            return alive;
+        }
+        setInterval(function () {
+            try {
+                if (sessionAlive()) {
+                    sawLiveSession = true;
+                    streamDeadSince = 0;
+                    return;
+                }
+                // Mall/queue browsing before any session: nothing to recover.
+                if (!sawLiveSession) return;
+                if (!streamDeadSince) {
+                    streamDeadSince = Date.now();
+                    L("watchdog: stream gone, waiting before recovery");
+                    return;
+                }
+                if (Date.now() - streamDeadSince >= WATCHDOG_MS) {
+                    L("watchdog: stream dead for " + Math.round((Date.now() - streamDeadSince) / 1000) +
+                      "s (stuck shutdown?); returning to mall");
+                    window.location.href = "https://play.geforcenow.com/mall/";
+                }
+            } catch (e) {}
+        }, 2000);
+
+        // ---- NVST signaling-reconnect watchdog ----
+        // The "Steam is closing" hang streams its screen through a still-live
+        // media session, so the dead-stream watchdog above cannot see it. The
+        // signature of the hang is instead the NVST signaling client retrying
+        // its reconnect handshake forever: every attempt fails the WebSocket
+        // handshake. Count consecutive failed reconnects; past a threshold,
+        // return to the mall.
+        var nvstFailCount = 0;
+        try {
+            var OrigWS = window.WebSocket;
+            function createWS(url, protocols) {
+                var ws = (protocols === undefined) ? new OrigWS(url) : new OrigWS(url, protocols);
+                try {
+                    var u = String(url);
+                    if (u.indexOf("/nvst/sign_in") !== -1 && u.indexOf("reconnect=1") !== -1) {
+                        var opened = false;
+                        ws.addEventListener("open", function () { opened = true; nvstFailCount = 0; });
+                        ws.addEventListener("close", function () {
+                            if (opened) return;
+                            nvstFailCount++;
+                            L("nvst reconnect attempt failed (" + nvstFailCount + ")");
+                            if (nvstFailCount >= 12) {
+                                nvstFailCount = 0;
+                                L("watchdog: nvst reconnect loop (stuck shutdown?); returning to mall");
+                                window.location.href = "https://play.geforcenow.com/mall/";
+                            }
+                        });
+                    }
+                } catch (e) {}
+                return ws;
+            }
+            Object.keys(OrigWS).forEach(function (k) { if (!(k in createWS)) createWS[k] = OrigWS[k]; });
+            createWS.prototype = OrigWS.prototype;
+            window.WebSocket = createWS;
+        } catch (e) { L("ws hook error", e && e.message); }
 
         L("injected; hook active");
     } catch (e) {
