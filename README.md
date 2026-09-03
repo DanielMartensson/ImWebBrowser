@@ -8,240 +8,142 @@
 
 # ImWebBrowser
 
-A lightweight **kiosk-grade web browser** built on **SDL3 + Dear ImGui + WPE WebKit**
-with **zero-copy DMA-buf rendering** (two render backends: OpenGL ES 3, default, and Vulkan).
-Because it rides WPE WebKit, the exact same binary targets a desktop GPU, a Yocto board
-(STM32MP257F + VPU), or any embedded Linux — it was built to bring cloud gaming
+A fast **kiosk-grade web browser** built on **SDL3 + Dear ImGui + WPE WebKit**
+with **zero-copy DMA-buf rendering** (OpenGL ES 3 by default, Vulkan optional).
+Because it rides WPE WebKit, the same binary runs on a desktop, a Yocto board
+(STM32MP257F + VPU) or any embedded Linux — it was built to bring cloud gaming
 (NVIDIA GeForce Now), video and WebGL to a small screen.
 
-<p align="center">
-  <img alt="ImWebBrowser demo" src="docs/demo.gif" width="640">
-</p>
-
----
-
-## Build everything from source
-
-The whole stack — **SDL3, libwpe, wpebackend-fdo, GStreamer 1.26 (with WebRTC), WPE WebKit**
-and ImWebBrowser itself — is built **from source** by a single script, Gentoo-style.
-Nothing depends on your distro packaging these, which is what you need on Yocto/OpenSTLinux:
+## Getting started
 
 ```bash
-./setup.sh                 # downloads + builds + installs everything -> /usr/local
-./run --kiosk https://play.geforcenow.com   # then just run it
+# 1. Standard packages via apt (installed once — see list below)
+sudo apt-get install build-essential cmake ninja-build meson pkg-config curl git ...
+
+# 2. Build the whole stack from source (lands in ./deps/ — never touches the system)
+./setup.sh
+
+# 3. Run
+./run.sh --kiosk https://example.com
 ```
 
-What `setup.sh` does under the hood (each step is one source build):
+## What is installed from where?
 
-| # | Component | Version | Purpose |
-|---|---|---|---|
-| 1 | SDL3 | 3.4.14 | Windowing, input, render backend |
-| 2 | libwpe | 1.16.3 | WPE backend API |
-| 3 | wpebackend-fdo | 1.16.1 | Exports WebKit frames as dmabuf/EGLImage |
-| 4 | **GStreamer** | 1.26.11 | Media framework + **WebRTC** (GeForce Now) |
-| 5 | **WPE WebKit** | 2.52.6 | The browser engine (WebRTC + media enabled) |
-| 6 | ImWebBrowser | *this repo* | The project itself |
+Two kinds of dependencies, strictly separated:
 
-Useful flags:
+**1. From source — built by `setup.sh` into `deps/`** (pinned versions,
+app-local, apt never touches them):
+
+| Component | Version | Why from source |
+|---|---|---|
+| SDL3 | 3.4.14 | Not in apt at all (Ubuntu ships only SDL2) |
+| libwpe | 1.16.3 | WPE backend API |
+| wpebackend-fdo | 1.16.1 | Exports WebKit frames as dmabuf/EGLImage |
+| GStreamer | 1.26.11 | Ubuntu's 1.24 has a broken `webrtcbin` for GeForce Now (`0xC0F2220E`) |
+| WPE WebKit | 2.52.6 | Distro builds lack the WebRTC/media bits |
+
+**2. Via apt-get — standard packages that never need patching:**
 
 ```bash
-./setup.sh --download-only          # fetch all sources, build nothing
-./setup.sh --build-only             # reuse downloaded sources, rebuild
-./setup.sh --prefix ~/imwb          # install into a private prefix (not /usr/local)
-./setup.sh --jobs 4 --skip-sdl3     # parallelism / dependency selection
+sudo apt-get install \
+    build-essential cmake ninja-build meson pkg-config curl git tar python3 \
+    flex bison gobject-introspection libgirepository1.0-dev \
+    libglib2.0-dev libsoup-3.0-dev libgcrypt20-dev libepoxy-dev \
+    libegl-dev libgles2-mesa-dev libxkbcommon-dev libwayland-dev \
+    libdrm-dev libffi-dev libxml2-dev libxslt1-dev libsqlite3-dev \
+    libharfbuzz-dev libfreetype-dev libfontconfig1-dev libicu-dev \
+    libpng-dev libjpeg-dev libwebp-dev libtasn1-dev libpsl-dev \
+    libseccomp-dev \
+    bubblewrap xdg-dbus-proxy \
+    libgl1-mesa-dri pipewire wireplumber \
+    fonts-dejavu-core fonts-liberation
 ```
 
-`setup.sh` is **idempotent**: re-running it reuses already-downloaded source and any
-existing build cache, and only rebuilds what is missing.
-
-> **Why GStreamer 1.26 from source?** Ubuntu 24.04 ships GStreamer 1.24, whose
-> `webrtcbin` fails GeForce Now's SDP exchange (`0xC0F2220E`). GStreamer 1.26 fixes
-> session-level `a=setup` inheritance. Hence the pinned 1.26 source build.
->
-> **Why WPE WebKit from source?** Distro WPE builds lack the WebRTC/media bits this
-> project needs. The build enables `WEB_RTC` + `MEDIA_STREAM`.
-
-### Already have the deps installed?
-
-Then just build ImWebBrowser with plain CMake (deps are found via pkg-config):
-
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
-```
-
----
+> **The target platform is the STM32MP257F (embedded).** There `setup.sh` is
+> **not** used — a Yocto meta-layer of recipes (bitbake) controls how and which
+> dependencies get built, and the recipe drives the same CMake build
+> (`cmake -B build`) against the layer's packages. `setup.sh` is the dev-PC
+> path; `run.sh` and the CMake build are common to both. The rule is the same
+> everywhere: whatever the platform cannot deliver (e.g. Vulkan in Scarthgap)
+> must be built from source — by `setup.sh` on the dev PC, by the recipes on
+> the target.
 
 ## What works
 
-| Service / site | Status | Notes |
-|---|---|---|
-| 🎮 **NVIDIA GeForce Now** | ✅ | Cloud gaming: video + keyboard/mouse input bridge + auto-unmuted audio (`IMWB_GFN_BRIDGE=1`, script in `src/js/gfn/`) |
-| 📺 **YouTube** | ✅ | VP9/AV1/H.264 + GPU compositing |
-| 🎬 **Netflix** | ⚠️ Untested | Needs Widevine/EME — see [DRM note](#drm-netflix) |
-| 🐠 **Web Fish Tank** | ✅ | Pure WebGL; benchmark it with `--bench-fish N` |
-| 🔍 **DuckDuckGo** | ✅ | Default start page / search fallback |
-
-| Building | Status |
+| Platform | Status |
 |---|---|
 | Linux x86-64 (dev PC) | ✅ |
-| STM32MP257F (Yocto / OpenSTLinux) | ✅ |
-| Windows / macOS | ❌ *(Linux-only — WPE WebKit backend)* |
+| STM32MP257F (Yocto/Watermelon-Wine) | ✅ |
+| Windows / macOS | ❌ |
 
----
+| Service | Status |
+|---|---|
+| GeForce Now (WebRTC) | ✅ |
+| YouTube | ✅ |
+| Web Fish Tank (WebGL) | ✅ |
+| DuckDuckGo | ✅ |
+| Netflix (Widevine/EME) | ⚠️ untested |
 
 ## Running
 
 ```bash
-./build/imwebbrowser [URL] [--kiosk] [--bench-fish N]   # OpenGL ES build
+./run.sh                              # normal window
+./run.sh --kiosk https://example.com  # kiosk mode
+./run.sh --kiosk "https://play.geforcenow.com/games?game-id=0b3b25bf-a12d-4b0e-892a-348dba794901"
 ```
 
-| Argument | Meaning |
+Environment variables (all optional):
+
+| Variable | Meaning |
 |---|---|
-| `URL` | Start page; defaults to `https://duckduckgo.com` |
-| `--kiosk` | Fullscreen direct-blit, no toolbar/UI |
-| `--bench-fish N` | Auto-start the WebGL Aquarium benchmark with N fish |
+| `IMWB_PREFIX` | A bundled prefix other than `deps/install` |
+| `IMWB_BUILD_DIR` | A build directory other than `build` |
+| `IMWB_VIDEO_DECODER` | Boost a GStreamer decoder to MAX rank, e.g. `v4l2slh264dec` on the STM32MP257F |
 
-**GeForce Now** (the flags the whole stack was tuned for):
-
-```bash
-IMWB_GFN_BRIDGE=1 IMWB_GST_PREFIX=/opt/gst126 SDL_VIDEODRIVER=x11 \
-  ./run --kiosk "https://play.geforcenow.com/games?game-id=0b3b25bf-a12d-4b0e-892a-348dba794901"
-```
-
-> `IMWB_GST_PREFIX` points at a GStreamer prefix at runtime. With `setup.sh`'s default
-> `/usr/local` install you don't need it — the prefix is already the system one.
-
-### Development: nested Weston
-
-WPE renders through Wayland, so on an X11 desktop `run-native.sh` brings up a nested
-Weston window automatically and tears it down on exit:
-
-```bash
-./run-native.sh https://example.com --kiosk
-./run-native.sh --rebuild          # force a fresh configure + rebuild
-```
-
-### Keyboard
-
-| Key | Action |
-|---|---|
-| `Ctrl+L` | Focus URL bar |
-| `Ctrl+R` / `Ctrl+Shift+R` | Reload / bypass cache |
-| `Alt+Left` / `Alt+Right` | Back / forward |
-| `F11` | Toggle kiosk |
-| `F3` | Stats overlay |
-| `Ctrl+W` / `Ctrl+Q` | Quit |
-
-### Environment variables
-
-| Variable | Effect |
-|---|---|
-| `IMWB_WINDOW_SIZE=WxH` | Force initial window size |
-| `IMWB_NOVSYNC` | Disable vsync |
-| `IMWB_STATS` | Per-second FPS/export/present counters |
-| `IMWB_DEBUG_INPUT` | Verbose input logging |
-| `IMWB_PREFIX` | Install prefix used by `setup.sh` / `run` |
-| `IMWB_GST_PREFIX` | Runtime GStreamer prefix (GeForce Now) |
-| `IMWB_VIDEO_DECODER` | Force a GStreamer video decoder to MAX rank (`vah264dec`, `v4l2slh264dec`, …) |
-
----
+`setup.sh` flags: `--download-only`, `--build-only`, `--prefix=`, `--jobs=`,
+`--skip-sdl3` / `--skip-gstreamer` / `--skip-wpewebkit` / ... (idempotent —
+re-running reuses downloaded sources and the build cache).
 
 ## Features
 
-- **Two render backends** — OpenGL ES 3 (default) or Vulkan, chosen at configure time; both use the same zero-copy pipeline.
-- **Zero-copy rendering** — WebKit dmabuf frames become GPU textures directly (`EGLImage` in GLES, DRM-modifier `VkImage` in Vulkan). No CPU copies.
-- **Present-on-demand** — idle kiosk CPU ~5 % (naps between presents; hot render spin avoided).
-- **Direct kiosk path** — UI skipped entirely; web texture blitted fullscreen.
-- **Gaming-grade input** — the `src/js/gfn/` bridge injects keyboard/mouse into GeForce Now and auto-unmutes the game audio, surviving WebRTC renegotiations and stuck-shutdown hangs (dead-stream + NVST watchdogs).
-- **Correct pointer/media semantics** — WPE button numbers/bitmasks, DOM fullscreen ↔ kiosk, `target=_blank` routed into the single view.
-- **Swedish keyboard layout** via system XKB keymap.
-
----
+- Zero-copy rendering: WebKit exports frames as dmabuf/EGLImage imported as GL textures
+- WebRTC + media stream (cloud gaming, video)
+- Swedish keyboard support via xkbcommon
+- Audio through GStreamer → PipeWire
+- Kiosk mode, FPS overlay (Dear ImGui)
 
 ## Patches
 
-`setup.sh` auto-applies four upstream patches (via `git apply`, idempotent) before building:
+Four upstream patches are applied by `setup.sh` (via `git apply`, idempotent):
 
-| Patch | Applied to | Why |
-|---|---|---|
-| `patches/wpe-webkit-bwrap-unshare-net-webrtc.patch` | WPE WebKit | Let the sandboxed web process share the host network so libnice sees a real interface (GeForce Now needs it) |
-| `patches/wpe-webkit-empty-body-js-mime.patch` | WPE WebKit | Don't let the content sniffer downgrade empty-body JS responses to `text/plain` (breaks ES module boots) |
-| `patches/gstreamer-webrtcbin-audio-opus-ptmap-fallback.patch` | GStreamer | Keep audio m-line/codec for a receive-only Opus transceiver |
-| `patches/gstreamer-webrtcbin-balanced-to-maxbundle.patch` | GStreamer | Map unsupported balanced bundle policy to max-bundle |
+| Patch | Purpose |
+|---|---|
+| `wpe-webkit-bwrap-unshare-net-webrtc.patch` | Let WebRTC see the network through the bubblewrap sandbox |
+| `wpe-webkit-empty-body-js-mime.patch` | Empty JS responses with a wrong MIME type |
+| `gstreamer-webrtcbin-audio-opus-ptmap-fallback.patch` | Opus fallback in webrtcbin PT mapping |
+| `gstreamer-webrtcbin-balanced-to-maxbundle.patch` | BUNDLE085/MAXBUNDLE for GFN's SDP |
 
-The `patches/imwebbrowser-*.patch` files are historical snapshots of the GFN bridge work;
-that work is already in `src/` on the current branch and is **not** re-applied by `setup.sh`.
+## Hardware decoding (STM32MP257F)
 
----
-
-## Hardware tuning (decoders by platform)
-
-| Platform | Backend | Decoder | Media HW types |
-|---|---|---|---|
-| Lenovo W540 (dev PC) | GLES or Vulkan | `vah264dec` (VA-API) | `video/mp4; codecs="avc1"` |
-| STM32MP257F (VPU+Mali) | Vulkan | `v4l2slh264dec` | `video/mp4; codecs="avc1"` |
-| Software-only / headless | GLES | `avdec_h264` | *(empty)* |
+GeForce Now and `<video>` decode through GStreamer decodebin, which picks the
+decoder by rank. On the STM32MP257F this gives 1080p60 via the VPU:
 
 ```bash
-cmake -B build -DIMWB_VIDEO_DECODER=vah264dec -DIMWB_MEDIA_HW_TYPES='video/mp4; codecs="avc1"'
+IMWB_VIDEO_DECODER=v4l2slh264dec ./run.sh --kiosk "https://play.geforcenow.com/..."
 ```
 
-Leave `IMWB_VIDEO_DECODER` empty to let GStreamer pick by rank (usually software `avdec_h264`).
-
-> On the W540, Haswell only hardware-decodes **H.264** — HEVC/VP9/AV1 (used by
-> YouTube/Netflix at high quality) fall back to software via `gstreamer1.0-libav`.
-
-### DRM (Netflix)
-
-`ENABLE_ENCRYPTED_MEDIA` is a compile-time flag. It only works functionally when the
-WPE **Thunder/Widevine** CDM module is present; the default build ships with EME off,
-so **Netflix won't play** until that module is installed and WebKit is rebuilt with EME on.
-GeForce Now and YouTube do not depend on it.
-
-### WebRTC backend
-
-`ENABLE_WEBRTC` controls WebKit's runtime setting, but **which engine implements
-`RTCPeerConnection` is decided when WPE WebKit is built**: `USE_GSTREAMER_WEBRTC=ON`
-(the WPE default, and what this project builds against) uses GStreamer's `webrtcbin`;
-`OFF` uses WPE's bundled libwebrtc. The GStreamer path needs `gstreamer1.0-nice`
-(ICE/STUN/TURN) and OpenSSL ≥ 3.0.
-
----
-
-## Architecture
+## Architecture (short)
 
 ```
-SDL3 events ──► main.cpp (geometry routing) ──► browser.cpp
-                                                    │ wpe_input_* events
-                                                    ▼
-                                            WPE WebKit (WebProcess)
-                                                    │ dmabuf frames
-                                                    ▼
-              browser.cpp updateWebTexture()
-                    │
-        ┌───────────┴────────────┐
-        ▼ GLES                   ▼ Vulkan
-  EGLImage → GL texture   eglExportDMABUFImageMESA → VkImage import
-        │                        │ (same GPU, pinned via DRM node)
-        └───────────┬────────────┘
-                    ▼
-      SDL_GL_SwapWindow / vkQueuePresentKHR
+SDL3 window (X11/Wayland/Vulkan)      ← the app draws it itself
+   ↑ EGLImage/dmabuf (zero-copy)
+wpebackend-fdo (EGL mode)             ← wpe_fdo_initialize_for_egl_display
+   ↑ WPE bridge
+WPE WebKit 2.52.6 (WPEWebProcess, WPENetworkProcess)
+   ↑ webrtcbin
+GStreamer 1.26.11
 ```
 
-- `src/main.cpp` — window/backend setup, event loop, kiosk fast path, benchmark harness.
-- `src/browser.cpp/.hpp` — WPE WebKit embedding, zero-copy frame import, input → `wpe_input_*`, signals.
-- `src/vk_backend.cpp/.hpp` — *(Vulkan)* swapchain + external-memory dma-buf import.
-- `src/ui.cpp/.hpp` — Dear ImGui toolbar: URL bar, nav, progress, stats.
-- `src/js/gfn/gfn_input_bridge.js` — injected GFN bridge (input, auto-unmute, watchdogs).
-
-### Vulkan/input lessons (brief)
-
-- **Same-GPU pinning**: WPE's EGL display matches the Vulkan dev node by DRM render-node minor (`VK_EXT_physical_device_drm`) so cross-vendor tiled imports don't misrender.
-- **Handle type**: import dma-buf fds as `VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT`, not `OPAQUE_FD`.
-- **Input**: WPE wants plain button integers (1/2/3) + a pressed-bitmask in `state`, not `BTN_*` codes. A click overlapping a page load can lose its button-up; the embedder re-arms on every `load-changed`.
-
-## Interactive documentation
-
-Open **[`index.html`](index.html)** — an animated HTML5/WebGL reference manual with a
-draggable 3-D render-pipeline model, tooltips on every public function and per-module dives.
+The app runs the WPE backend in EGL-export mode and blits WebKit's frames
+itself into its own SDL3 window — so **no Wayland compositor is needed** (no
+weston). Documentation lives in the code as comments and in this README.

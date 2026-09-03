@@ -2,6 +2,7 @@
 /build/
 /build-*/
 /.deps/
+/deps/
 imgui.ini
 
 # CMake generated header (created at configure time)

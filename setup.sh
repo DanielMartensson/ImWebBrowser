@@ -13,12 +13,18 @@
 #
 # Usage
 # -----
-#   ./setup.sh                          # full from-source build into /usr/local
+#   ./setup.sh                          # build everything from source into deps/install
 #   ./setup.sh --prefix ~/imwb          # install into a private prefix instead
 #   ./setup.sh --jobs 4                 # parallel build
 #   ./setup.sh --download-only          # fetch all source, build nothing
 #   ./setup.sh --build-only             # reuse downloaded source, only build
 #   ./setup.sh --with-sdl3/--skip-sdl3  # include/exclude a dependency
+#
+# All dependencies are bundled app-locally under deps/ (never into the system):
+# deps/src      — downloaded + extracted + patched sources
+# deps/install  — the single private prefix (lib, include, bin, ...) everything
+#                 is installed into. run.sh points at it, and the whole tree is
+#                 whole tree is self-contained, so apt never touches these.
 #
 # Build order (respects the dependency graph):
 #   SDL3 -> libwpe -> wpebackend-fdo -> GStreamer 1.26 -> WPE WebKit -> ImWebBrowser
@@ -28,8 +34,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Configurable defaults (override on the command line or via env).
 # ---------------------------------------------------------------------------
-PREFIX="${IMWB_PREFIX:-/usr/local}"                 # where everything lands
-SRC_DIR="${IMWB_SRC_DIR:-$PWD/.deps/src}"           # downloaded + extracted source
+PREFIX="${IMWB_PREFIX:-$PWD/deps/install}"          # where everything lands
+SRC_DIR="${IMWB_SRC_DIR:-$PWD/deps/src}"            # downloaded + extracted source
 JOBS="$(nproc)"
 DO_DOWNLOAD=1
 DO_BUILD=1
@@ -173,17 +179,31 @@ run_install() {
 }
 
 # ---------------------------------------------------------------------------
-# 1. System build-tools (the only APT step — toolchain, not the libs we build).
-#    On Debian/Ubuntu, install these before running setup.sh. On Yocto/OpenSTLinux
-#    the SDK already provides them, so this is skipped.
-#    sudo apt install build-essential cmake ninja-build meson pkg-config curl \
-#        python3 libglib2.0-dev libgles2-mesa-dev libegl-dev libwayland-dev \
-#        libxkbcommon-dev libdrm-dev libffi-dev flex bison gobject-introspection \
-#        libsoup-3.0-dev libgcrypt20-dev libgirepository1.0-dev
+# 0. System packages via APT (the ONLY thing apt installs — standard, distro
+#    packages we never re-build or touch). Everything under the "Bundled deps"
+#    sections below is built from source into deps/install instead.
+#
+# Run once (Debian/Ubuntu desktop). On Yocto/OpenSTLinux the SDK + layer
+# already provide the equivalents, so nothing here applies.
+#
+#   sudo apt-get install \
+#       build-essential cmake ninja-build meson pkg-config curl git tar \
+#       libglib2.0-dev \
+#       libgles2-mesa-dev libegl-dev          # egl + glesv2 (GPU rendering)
+#       libwayland-dev                         # wayland-server (shm fallback)
+#       libxkbcommon-dev                       # keyboard layout
+#       libdrm-dev libffi-dev flex bison \
+#       gobject-introspection libgirepository1.0-dev \
+#       libsoup-3.0-dev libgcrypt20-dev \
+#       # runtime (not build-time):
+#       weston libgl1-mesa-dri libgles2-mesa pipewire wireplumber \
+#       gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-nice \
+#       fonts-dejavu-core fonts-liberation
+#
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# 2. SDL3 3.4.14 — windowing, input, render backend.
+# 1. SDL3 3.4.14 — windowing, input, render backend.
 # ---------------------------------------------------------------------------
 build_sdl3() {
     local d="$SRC_DIR/SDL"
@@ -213,17 +233,27 @@ build_libwpe() {
 
 # ---------------------------------------------------------------------------
 # 4. wpebackend-fdo 1.16.1 — exports WebKit frames as dmabuf/EGLImage.
+#    A MESON project (no CMakeLists.txt).
 # ---------------------------------------------------------------------------
 build_wpebackend() {
     local d="$SRC_DIR/wpebackend-fdo-1.16.1"
     [ -d "$d" ] || return 0
     local b="$d/build"
     say "wpebackend-fdo"
-    cmake -S "$d" -B "$b" \
-        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
-        -DBUILD_DOCS=OFF "$@"
-    cmake --build "$b" -j"$JOBS"
-    run_install "$b"
+    meson setup "$b" "$d" --prefix="$PREFIX" -Dbuild_docs=false "$@"
+    meson compile -C "$b" -j"$JOBS"
+    if need_sudo; then
+        meson install -C "$b"
+    else
+        local k="$PREFIX"
+        while [ "$k" != "/" ] && [ ! -w "$k" ]; do k=$(dirname "$k"); done
+        if [ -w "$k" ]; then
+            meson install -C "$b"
+        else
+            echo "   [sudo] installing wpebackend-fdo into $PREFIX"
+            sudo env LD_LIBRARY_PATH="$LD_LIBRARY_PATH" PATH="$PATH" meson install -C "$b"
+        fi
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -360,11 +390,11 @@ main() {
 
     build_imwebbrowser
 
-    say "Done. ImWebBrowser + dependencies installed into: $PREFIX"
-    if [ "$PREFIX" = /usr/local ]; then
-        echo "Run it with:  ./run --kiosk https://example.com"
+    say "Done. ImWebBrowser + bundled dependencies are installed into: $PREFIX"
+    if [ "$PREFIX" = "$PWD/deps/install" ] || [ "$PREFIX" = "deps/install" ]; then
+        echo "Run it with:  ./run.sh --kiosk https://example.com"
     else
-        echo "Run it with:  IMWB_PREFIX=$PREFIX ./run --kiosk https://example.com"
+        echo "Run it with:  IMWB_PREFIX=$PREFIX ./run.sh --kiosk https://example.com"
     fi
 }
 
