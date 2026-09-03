@@ -1,30 +1,35 @@
 #!/usr/bin/env bash
 #
-# setup.sh — build ImWebBrowser AND every dependency from source, Gentoo-style.
+# setup.sh — dev-PC helper: build ImWebBrowser AND every dependency from
+# source, Gentoo-style, into the app-local deps/ prefix.
 #
 #   Every dependency (SDL3, libwpe, wpebackend-fdo, WPE WebKit, GStreamer)
-#   is downloaded as *source*, configured, built and installed into one prefix.
-#   Nothing relies on a distro shipping these — which is exactly what you need
-#   on OpenSTLinux/Yocto, where everything has to come from source.
+#   is downloaded as *source*, configured, built and installed into deps/.
+#   The distro's packages are either missing (SDL3) or too old/broken for
+#   GeForce Now (GStreamer 1.24 webrtcbin), so nothing relies on apt for these.
+#   On the target (OpenSTLinux/Yocto) setup.sh is NOT used — the meta-layer's
+#   recipes build the same stack; run.sh works on both machines.
 #
-# It is idempotent: re-running it reuses already-downloaded source and, when a
-# source tree is already built (e.g. /home/mint/gst-src), the existing build
-# cache; it only (re)builds what is missing or out of date.
+# It is idempotent: sources are only downloaded when missing, and existing
+# build trees under deps/src are reused — it only (re)builds what is missing
+# or out of date.
 #
 # Usage
 # -----
 #   ./setup.sh                          # build everything from source into deps/install
 #   ./setup.sh --prefix ~/imwb          # install into a private prefix instead
 #   ./setup.sh --jobs 4                 # parallel build
-#   ./setup.sh --download-only          # fetch all source, build nothing
-#   ./setup.sh --build-only             # reuse downloaded source, only build
 #   ./setup.sh --with-sdl3/--skip-sdl3  # include/exclude a dependency
+#
+# Sources are fetched automatically when missing — re-running reuses both the
+# downloaded sources and the build caches, so there are no download/build mode
+# flags to think about.
 #
 # All dependencies are bundled app-locally under deps/ (never into the system):
 # deps/src      — downloaded + extracted + patched sources
 # deps/install  — the single private prefix (lib, include, bin, ...) everything
-#                 is installed into. run.sh points at it, and the whole tree is
-#                 whole tree is self-contained, so apt never touches these.
+#                 is installed into. run.sh points at it, so the whole tree is
+#                 self-contained and apt never touches these.
 #
 # Build order (respects the dependency graph):
 #   SDL3 -> libwpe -> wpebackend-fdo -> GStreamer 1.26 -> WPE WebKit -> ImWebBrowser
@@ -37,11 +42,6 @@ set -euo pipefail
 PREFIX="${IMWB_PREFIX:-$PWD/deps/install}"          # where everything lands
 SRC_DIR="${IMWB_SRC_DIR:-$PWD/deps/src}"            # downloaded + extracted source
 JOBS="$(nproc)"
-DO_DOWNLOAD=1
-DO_BUILD=1
-DOWNLOAD_ONLY=0
-BUILD_ONLY=0
-
 # Dependency enable/disable switches (all ON by default; the two needed for
 # GeForce Now are wpewebkit + gstreamer, both mandatory).
 WITH_SDL3=1
@@ -55,8 +55,6 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --prefix=*)     PREFIX="${1#*=}" ;;
         --jobs=*)       JOBS="${1#*=}" ;;
-        --download-only) DO_BUILD=0; DOWNLOAD_ONLY=1 ;;
-        --build-only)   DO_DOWNLOAD=0; BUILD_ONLY=1 ;;
         --with-sdl3)    WITH_SDL3=1 ;;
         --skip-sdl3)    WITH_SDL3=0 ;;
         --with-libwpe)  WITH_LIBWPE=1 ;;
@@ -68,7 +66,7 @@ while [ $# -gt 0 ]; do
         --with-wpewebkit) WITH_WPEWEBKIT=1 ;;
         --skip-wpewebkit) WITH_WPEWEBKIT=0 ;;
         -h|--help)
-            sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "unknown option: $1 (see --help)" >&2; exit 1 ;;
@@ -120,7 +118,8 @@ fetch() {
     mkdir -p "$SRC_DIR/$name.tmp"
     tar -xf "$tar" -C "$SRC_DIR/$name.tmp" --strip-components=1
     mv "$SRC_DIR/$name.tmp" "$SRC_DIR/$name"
-    rm -f "$tar"
+    # Keep the tarball: a later forced clean rebuild (deleted build dir or
+    # re-extract) reuses it instead of re-downloading.
 }
 
 # fetch_gstreamer — GStreamer ships as a monorepo whose layout
@@ -128,7 +127,11 @@ fetch() {
 # release tarballs do NOT have that layout, so clone the git monorepo at the
 # pinned tag. Sparse + shallow keeps the download small.
 fetch_gstreamer() {
-    local ver="1.26.11" dest="$SRC_DIR/gstreamer-$ver"
+    # NOTE: two separate `local` lines — bash expands all arguments of a single
+    # `local` statement BEFORE it runs, so `dest=$SRC_DIR/gstreamer-$ver` in the
+    # same statement would hit `ver` unbound under `set -u`.
+    local ver="1.26.11"
+    local dest="$SRC_DIR/gstreamer-$ver"
     [ -d "$dest" ] && { echo "   [skip] gstreamer-$ver already present"; return; }
     echo "   [clone] GStreamer monorepo @ $ver"
     git clone --depth 1 --branch "$ver" \
@@ -330,14 +333,16 @@ build_imwebbrowser() {
 }
 
 # ---------------------------------------------------------------------------
-# Full dependency list (name | enable | fetch-url | build-fn)
-#   `GStreamer` uses a git clone instead of a tarball — handled specially.
+# Full dependency list (name | enable | fetch-url | build-fn), in dependency
+# order. GStreamer uses a git clone instead of a tarball — the URL decides.
+# Each enabled dep is fetched-if-missing and then built, one at a time, so an
+# earlier install satisfies the next configure (pkg-config picks up $PREFIX).
 # ---------------------------------------------------------------------------
 declare -a DEPS=(
     "SDL3|$WITH_SDL3|https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.4.14.tar.gz|build_sdl3"
     "libwpe|$WITH_LIBWPE|https://wpewebkit.org/releases/libwpe-1.16.3.tar.xz|build_libwpe"
     "wpebackend-fdo|$WITH_WPEBACKEND|https://wpewebkit.org/releases/wpebackend-fdo-1.16.1.tar.xz|build_wpebackend"
-    "GStreamer|$WITH_GSTREAMER|https://gitlab.freedesktop.org/gstreamer/gstreamer.git|fetch_gstreamer+build_gstreamer"
+    "GStreamer|$WITH_GSTREAMER|https://gitlab.freedesktop.org/gstreamer/gstreamer.git|build_gstreamer"
     "WPE-WebKit|$WITH_WPEWEBKIT|https://wpewebkit.org/releases/wpewebkit-2.52.6.tar.xz|build_wpewebkit"
 )
 
@@ -347,7 +352,6 @@ name_for_fetch() {
         *SDL*)          echo SDL ;;
         *libwpe-1.16.3*) echo libwpe-1.16.3 ;;
         *wpebackend-fdo-1.16.1*) echo wpebackend-fdo-1.16.1 ;;
-        *gstreamer.git*) echo gstreamer-1.26.11 ;;
         *wpewebkit-2.52.6*) echo wpewebkit-2.52.6 ;;
     esac
 }
@@ -359,34 +363,17 @@ main() {
     echo "  jobs   : $JOBS"
     echo
 
-    require_cmd cmake curl tar
-    [ "$DO_BUILD" = 1 ] && require_cmd ninja meson pkg-config
+    require_cmd cmake curl tar git ninja meson pkg-config
 
-    if [ "$DO_DOWNLOAD" = 1 ]; then
-        say "Step 1 — download all dependency sources"
-        for row in "${DEPS[@]}"; do
-            IFS='|' read -r _name _en _url _fns <<<"$row"
-            [ "$_en" = 1 ] || continue
-            if [[ "$_fns" == fetch_gstreamer+* ]]; then
-                fetch_gstreamer
-            else
-                fetch "$_url" "$(name_for_fetch "$_url")"
-            fi
-        done
-    fi
-
-    if [ "$DOWNLOAD_ONLY" = 1 ]; then
-        say "All sources downloaded. Re-run without --download-only to build."
-        exit 0
-    fi
-
-    [ "$DO_BUILD" = 1 ] || { say "Nothing to do."; exit 0; }
-
-    [ "$WITH_SDL3" = 1 ]        && build_sdl3
-    [ "$WITH_LIBWPE" = 1 ]      && build_libwpe
-    [ "$WITH_WPEBACKEND" = 1 ]  && build_wpebackend
-    [ "$WITH_GSTREAMER" = 1 ]   && build_gstreamer
-    [ "$WITH_WPEWEBKIT" = 1 ]   && build_wpewebkit
+    for row in "${DEPS[@]}"; do
+        IFS='|' read -r _name _en _url _fn <<<"$row"
+        [ "$_en" = 1 ] || continue
+        case "$_url" in
+            *gstreamer.git*) fetch_gstreamer ;;
+            *)               fetch "$_url" "$(name_for_fetch "$_url")" ;;
+        esac
+        "$_fn"
+    done
 
     build_imwebbrowser
 

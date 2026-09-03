@@ -27,6 +27,22 @@ sudo apt-get install build-essential cmake ninja-build meson pkg-config curl git
 ./run.sh --kiosk https://example.com
 ```
 
+## Which script runs where
+
+| Script | Dev PC (Linux) | Target (STM32MP257F / OpenSTLinux) |
+|---|---|---|
+| `setup.sh` | ✅ builds every dependency from source into `deps/` | ❌ never used — the Yocto meta-layer's recipes build the dependencies |
+| `cmake -B build` | ✅ (what `setup.sh` runs as its last step) | ✅ the same build, driven by the recipe |
+| `run.sh` | ✅ | ✅ the same script on both |
+
+`run.sh` works unchanged on both machines: on the dev PC it picks the build in
+`build/` and exports the env needed to find the bundled `deps/install` prefix
+(private libs + GStreamer 1.26); on the target the recipe has installed the
+browser and its dependencies into the system, so `run.sh` simply finds the
+system binary and runs it — the bundled-prefix env block is skipped
+automatically. `setup.sh` is the dev-PC-only convenience that produces the same
+end state the recipes produce on the target.
+
 ## What is installed from where?
 
 Two kinds of dependencies, strictly separated:
@@ -59,14 +75,11 @@ sudo apt-get install \
     fonts-dejavu-core fonts-liberation
 ```
 
-> **The target platform is the STM32MP257F (embedded).** There `setup.sh` is
-> **not** used — a Yocto meta-layer of recipes (bitbake) controls how and which
-> dependencies get built, and the recipe drives the same CMake build
-> (`cmake -B build`) against the layer's packages. `setup.sh` is the dev-PC
-> path; `run.sh` and the CMake build are common to both. The rule is the same
-> everywhere: whatever the platform cannot deliver (e.g. Vulkan in Scarthgap)
-> must be built from source — by `setup.sh` on the dev PC, by the recipes on
-> the target.
+> The rule is the same everywhere: whatever the platform cannot deliver must be
+> built from source. On the dev PC that means apt's versions (missing/broken) —
+> handled by `setup.sh`. On the target it means whatever the OpenSTLinux
+> (Yocto Scarthgap) layers cannot provide (e.g. Vulkan) — handled by the
+> recipes in the meta-layer.
 
 ## What works
 
@@ -100,9 +113,9 @@ Environment variables (all optional):
 | `IMWB_BUILD_DIR` | A build directory other than `build` |
 | `IMWB_VIDEO_DECODER` | Boost a GStreamer decoder to MAX rank, e.g. `v4l2slh264dec` on the STM32MP257F |
 
-`setup.sh` flags: `--download-only`, `--build-only`, `--prefix=`, `--jobs=`,
-`--skip-sdl3` / `--skip-gstreamer` / `--skip-wpewebkit` / ... (idempotent —
-re-running reuses downloaded sources and the build cache).
+`setup.sh` flags: `--prefix=`, `--jobs=`, `--with-*` / `--skip-*` (idempotent —
+sources are fetched automatically when missing and build caches are reused).
+Use `--jobs 1` or `--jobs 2` when building WPE WebKit on a machine with little RAM.
 
 ## Features
 
