@@ -13,21 +13,15 @@ during deploys).
 When the server declares a supported JavaScript MIME type and the
 response body is empty, keep the declared type instead of the sniffer's
 guess.
-
-diff --git a/Source/WebCore/platform/network/soup/ResourceResponseSoup.cpp b/Source/WebCore/platform/network/soup/ResourceResponseSoup.cpp
-index 1111111..2222222 100644
 --- a/Source/WebCore/platform/network/soup/ResourceResponseSoup.cpp
 +++ b/Source/WebCore/platform/network/soup/ResourceResponseSoup.cpp
-@@ -60,12 +60,19 @@ ResourceResponse::ResourceResponse(SoupMessage* soupMessage, const CString& sni
-     auto* responseHeaders = soup_message_get_response_headers(soupMessage);
-     updateFromSoupMessageHeaders(responseHeaders);
+@@ -62,9 +62,20 @@
  
      String contentType;
      const char* officialType = soup_message_headers_get_one(responseHeaders, "Content-Type");
 -    if (!sniffedContentType.isNull() && m_httpStatusCode != SOUP_STATUS_NOT_MODIFIED && sniffedContentType != officialType)
 -        contentType = String::fromLatin1(sniffedContentType.data());
 -    else
--        contentType = String::fromLatin1(officialType);
 +    if (!sniffedContentType.isNull() && m_httpStatusCode != SOUP_STATUS_NOT_MODIFIED && sniffedContentType != officialType) {
 +        // The content sniffer can only make a useful guess when there is actual
 +        // content; for an empty body it falls back to a "text/plain" guess that
@@ -42,7 +36,6 @@ index 1111111..2222222 100644
 +        else
 +            contentType = String::fromLatin1(sniffedContentType.data());
 +    } else
-+        contentType = String::fromLatin1(officialType);
+         contentType = String::fromLatin1(officialType);
      setMimeType(extractMIMETypeFromMediaType(contentType));
      if (m_mimeType.isEmpty() && m_httpStatusCode != SOUP_STATUS_NOT_MODIFIED)
-         setMimeType(MIMETypeRegistry::mimeTypeForPath(m_url.path()));

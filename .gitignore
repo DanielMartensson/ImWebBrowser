@@ -1,6 +1,7 @@
 # Build artifacts
 /build/
 /build-*/
+/.deps/
 imgui.ini
 
 # CMake generated header (created at configure time)
