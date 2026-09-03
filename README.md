@@ -27,6 +27,22 @@ intermediate buffers.
 Idle kiosk CPU on a static page: **~5 %** (present-on-demand loop with a 2 ms
 idle nap instead of a hot render spin).
 
+## Status at a glance
+
+| Building | Status |
+|---|---|
+| Linux x86-64 (dev PC, X11/Weston) | ✅ |
+| STM32MP257F (Yocto / Watermelon-Wine) | ✅ |
+| Windows / macOS | ❌ *(Linux-only — WPE WebKit backend)* |
+
+| Service / site | Status | Notes |
+|---|---|---|
+| 🎮 **NVIDIA GeForce Now** | ✅ Working | Full cloud gaming: H.264 video stream, keyboard/mouse input bridge with auto-unmuted game audio and stuck-shutdown watchdogs (`IMWB_GFN_BRIDGE=1`, script in `src/js/gfn/`) |
+| 📺 **YouTube** | ✅ Working | VP9/AV1/H.264 (software decode on the dev PC) + GPU compositing |
+| 🎬 **Netflix** | ⚠️ Untested | Requires Widevine/EME — see the DRM caveat under [What each streaming service actually needs](#what-each-streaming-service-actually-needs) |
+| 🐠 **Web Fish Tank** | ✅ Working | Pure WebGL compositing; benchmark it head-on with `--bench-fish N` |
+| 🔍 **DuckDuckGo** | ✅ Working | Default start page and smart URL-bar search fallback |
+
 ## Features
 
 - **Two rendering backends** — OpenGL ES 3 (default) or Vulkan, selected at
