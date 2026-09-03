@@ -167,6 +167,10 @@ cmake -B build -DIMWB_BACKEND_VULKAN=ON -DIMWB_VIDEO_DECODER=v4l2slh264dec
 | `IMWB_BACKEND_OPENGL_ES` | `ON` | OpenGL ES 3 context via SDL3 GL |
 | `IMWB_BACKEND_VULKAN` | `OFF` | Vulkan: dma-buf import + swapchain (auto-disables GLES) |
 
+> The Vulkan backend requires a **conformant** Vulkan driver — e.g. NVK/Mesa on
+> supported GPUs. A non-conformant one (pre-Broadwell Intel ANV reports
+> "Haswell Vulkan support is incomplete") is not a supported target.
+
 ```bash
 ./setup.sh --vulkan
 ```
