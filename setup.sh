@@ -201,22 +201,22 @@ run_install() {
 #    packages we never re-build or touch). Everything under the "Bundled deps"
 #    sections below is built from source into deps/install instead.
 #
-# Run once (Debian/Ubuntu desktop). On Yocto/OpenSTLinux the SDK + layer
-# already provide the equivalents, so nothing here applies.
+# Run once (Debian/Ubuntu desktop) — the same list as in README.md. On
+# Yocto/OpenSTLinux the meta-layer's recipes provide the equivalents.
 #
 #   sudo apt-get install \
-#       build-essential cmake ninja-build meson pkg-config curl git tar \
-#       libglib2.0-dev \
-#       libgles2-mesa-dev libegl-dev          # egl + glesv2 (GPU rendering)
-#       libwayland-dev                         # wayland-server (shm fallback)
-#       libxkbcommon-dev                       # keyboard layout
-#       libdrm-dev libffi-dev flex bison \
-#       gobject-introspection libgirepository1.0-dev \
-#       libsoup-3.0-dev libgcrypt20-dev \
-#       # runtime (not build-time):
-#       weston libgl1-mesa-dri libgles2-mesa pipewire wireplumber \
-#       gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-nice \
-#       fonts-dejavu-core fonts-liberation
+#       build-essential cmake ninja-build meson pkg-config curl git tar python3 \
+#       flex bison gobject-introspection libgirepository1.0-dev \
+#       libglib2.0-dev libsoup-3.0-dev libgcrypt20-dev libepoxy-dev \
+#       libegl-dev libgles2-mesa-dev libxkbcommon-dev libwayland-dev \
+#       libdrm-dev libffi-dev libxml2-dev libxslt1-dev libsqlite3-dev \
+#       libharfbuzz-dev libfreetype-dev libfontconfig1-dev libicu-dev \
+#       libpng-dev libjpeg-dev libwebp-dev libtasn1-dev libpsl-dev \
+#       libseccomp-dev \
+#       bubblewrap xdg-dbus-proxy \
+#       libgl1-mesa-dri libgles2-mesa pipewire wireplumber \
+#       fonts-dejavu-core fonts-liberation \
+#       libva-dev i965-va-driver  # VAAPI hardware decode (va plugin, vah264dec)
 #
 # ---------------------------------------------------------------------------
 
@@ -291,6 +291,7 @@ build_gstreamer() {
     meson setup "$b" "$d" \
         --prefix="$PREFIX" \
         -Dbase=enabled -Dgood=enabled -Dbad=enabled -Dugly=disabled -Dlibav=enabled -Dwebrtc=enabled \
+        -Dva=enabled \
         -Dgst-plugins-bad:tests=disabled -Dtests=disabled -Dexamples=disabled \
         -Dbenchmarks=disabled -Dgtk_doc=disabled "$@"
     meson compile -C "$b" -j"$JOBS"

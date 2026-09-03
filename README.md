@@ -10,6 +10,10 @@
 
 A fast **kiosk-grade web browser** built on **SDL3 + Dear ImGui + WPE WebKit**
 with **zero-copy DMA-buf rendering** (OpenGL ES 3 by default, Vulkan optional).
+**Hardware only** is a core principle: rendering always runs on the GPU
+(OpenGL ES / Vulkan — no llvmpipe/software rendering) and video is decoded by
+hardware decoders (VAAPI on x86, the SoC VPU on STM32MP257F) — software
+decode is not a supported target.
 Because it rides WPE WebKit, the same binary runs on a desktop, a Yocto board
 (STM32MP257F + VPU) or any embedded Linux — it was built to bring cloud gaming
 (NVIDIA GeForce Now), video and WebGL to a small screen.
@@ -71,9 +75,14 @@ sudo apt-get install \
     libpng-dev libjpeg-dev libwebp-dev libtasn1-dev libpsl-dev \
     libseccomp-dev \
     bubblewrap xdg-dbus-proxy \
-    libgl1-mesa-dri pipewire wireplumber \
-    fonts-dejavu-core fonts-liberation
+    libgl1-mesa-dri libgles2-mesa pipewire wireplumber \
+    fonts-dejavu-core fonts-liberation \
+    libva-dev i965-va-driver
 ```
+
+> `libva-dev` + `i965-va-driver` (or `mesa-va-drivers` on Broadwell+ / AMD)
+> give the bundled GStreamer its VAAPI hardware decoders — required by the
+> hardware-only principle.
 
 > The rule is the same everywhere: whatever the platform cannot deliver must be
 > built from source. On the dev PC that means apt's versions (missing/broken) —
@@ -138,6 +147,11 @@ Four upstream patches are applied by `setup.sh` (via `git apply`, idempotent):
 
 ## Hardware acceleration & build options
 
+**No software rendering.** ImWebBrowser is hardware-only: the render backends
+are GPU contexts (OpenGL ES 3 / Vulkan) and a machine without a working GPU
+driver (e.g. Mesa llvmpipe) is not a supported target. The same goes for video:
+decoding rides on hardware decoders, picked per platform below.
+
 The project itself is a plain **CMake project** — `setup.sh` runs it as the
 last step of its dependency build, and every option below is an ordinary
 CMake define that also works standalone:
@@ -169,8 +183,19 @@ cmake -B build -DIMWB_BACKEND_VULKAN=ON -DIMWB_VIDEO_DECODER=v4l2slh264dec
 IMWB_VIDEO_DECODER=v4l2slh264dec ./run.sh --kiosk "https://play.geforcenow.com/..."
 ```
 
-Decoder examples: `v4l2slh264dec` (STM32MP257F VPU, 1080p60),
-`vah264dec` (Intel/AMD VAAPI), `avdec_h264` (software fallback).
+Hardware decoders per platform (what to pass to `--decoder=` /
+`IMWB_VIDEO_DECODER`):
+
+| Platform | Decoder | Hardware |
+|---|---|---|
+| x86 dev PC (Intel HD, older than Broadwell) | `vah264dec` | VAAPI via the legacy `i965` driver (`i965-va-driver`) |
+| x86 (Intel Broadwell+) / AMD | `vah264dec` | VAAPI via `iHD` / `mesa-va-drivers` |
+| STM32MP257F (target) | `v4l2slh264dec` | SoC VPU, 1080p60 |
+
+> `setup.sh` builds the bundled GStreamer with the `va` plugin **enabled**, so
+> `vah264dec` exists whenever VAAPI is present (`libva-dev` at build time +
+> a VA driver at runtime — both in the apt list). `avdec_h264` (libav software
+> decode) is not a supported target.
 
 ### Any other CMake option
 
