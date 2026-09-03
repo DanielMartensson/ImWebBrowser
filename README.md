@@ -271,6 +271,59 @@ Levers to keep it that way:
 - **Trim animations/caches on very weak CPUs** —
   `--cmake="-DENABLE_SMOOTH_SCROLLING=OFF -DENABLE_PAGE_CACHE=OFF"`.
 
+## Memory — the real footprint (STM32MP257F: 2 GB RAM)
+
+Measured on the dev W540 against the same WPE WebKit 2.52.6, so it predicts
+the target's shared code path (the SoC build differs only in WebKit $
+flags and the VPU decoder).
+
+**Read PSS, not RSS.** Per-process RSS double-counts shared library pages:
+RSS shows WPEWebProcess as ~540 MB during GeForce NOW, but the *true
+physical* (PSS, proportional shared size) is what counts on a 2 GB target.
+
+| Scenario | WPEWebProcess PSS | Whole browser PSS |
+|---|---|---|
+| Blank page (no JS/network) | ~260 MB | ~360 MB |
+| GeForce NOW streaming (est.) | ~390 MB | ~490 MB |
+
+Breakdown of the ~260 MB blank-page PSS:
+
+- **Anonymous `rw-` (JSC heap + DOM/GC objects + buffers): ~150 MB** —
+  live working set; the only part that really grows with the page.
+- **Library `.text`/data (shared across the app's 2–3 processes): ~110 MB** —
+  counted once physically, shared, not per-process cost.
+- **Anonymous JIT exec: only ~3 MB** — surprised us too. **Do NOT disable
+  JIT for memory**; it is not where the memory goes.
+
+So the page (GeForce NOW's Angular SPA) drives the private heap from ~150 to
+~280 MB; the browser PSS sits around **~490 MB at 1080p streaming** —
+roughly a quarter of the target's 2 GB. That is mostly WebKit/JavaScriptCore
+physics for a heavy single-tab SPA and is not removable by jiggling WebKit
+page settings (each moves only single-digit MB).
+
+### Levers that actually matter on the target
+
+1. **Rely on WebKit's PSI memory-pressure GC (auto).** Verified: inducing
+   pressure calls WebKit's GC (PSI `/proc/pressure/memory`), shrinking the
+   JS heap. On the 2 GB target it keeps the Angular heap capped under load.
+   Just make sure the meta-layer image exposes PSI (it does by default on
+   Linux ≥ 5.4) and does not disable it.
+2. **WebKit build flags (meta-layer recipe)** — the only large lever, since
+   the app settings above are ~MB-level:
+   - `-DENABLE_DEVELOPER_EXTRAS=OFF` (remote Web Inspector) — drop the
+     inspector machinery from the WebProcess.
+   - `-DENABLE_PDFJS=OFF -DENABLE_FULLSCREEN_API=OFF -DENABLE_POINTER_LOCK=OFF
+     -DENABLE_SPEECH_SYNTHESIS=OFF` — subsystems the kiosk never uses.
+   - Keep `-DENABLE_JIT=ON` (fast JS, ~3 MB) and all media/WebRTC on.
+   - `-DCMAKE_BUILD_TYPE=MinSizeRel` for the SoC.
+3. **App lean preset** (already documented): the app forces
+   `WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER` and can be built lean with
+   `--cmake="-DENABLE_SMOOTH_SCROLLING=OFF -DENABLE_PAGE_CACHE=OFF
+   -DENABLE_DEVELOPER_EXTRAS=OFF"`.
+4. `setup.sh` runs clean end-to-end (verified). It builds serially by
+   default (`-j1` — this dev box is RAM/CPU constrained); on a beefier machine
+   pass `--jobs=N` or `IMWB_JOBS=N`.
+
 ## Architecture (short)
 
 ```

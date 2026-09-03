@@ -48,7 +48,9 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 PREFIX="${IMWB_PREFIX:-$PWD/deps/install}"          # where everything lands
 SRC_DIR="${IMWB_SRC_DIR:-$PWD/deps/src}"            # downloaded + extracted source
-JOBS="$(nproc)"
+# Build serially by default: this dev box is RAM/CPU-constrained, so -jN
+# oversubscribes and thrashes. Override on the CLI (--jobs=N) or env (IMWB_JOBS).
+JOBS="${IMWB_JOBS:-1}"
 EXTRA_CMAKE_ARGS=""   # extra defines for the final ImWebBrowser CMake build
 # Dependency enable/disable switches (all ON by default; the two needed for
 # GeForce Now are wpewebkit + gstreamer, both mandatory).
