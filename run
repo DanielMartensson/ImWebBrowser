@@ -33,6 +33,42 @@ fi
 # processes resolve them before (or instead of) any system copies.
 export LD_LIBRARY_PATH="$IMWB_PREFIX/lib:$IMWB_PREFIX/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
+# Share the host network with the WebKit web process.
+#
+# WebKit 2.52.6's bubblewrap sandbox (ENABLE_BUBBLEWRAP_SANDBOX=ON) launches
+# WPEWebProcess with --unshare-net, dropping it into a netns where only loopback
+# exists. libnice (WebRTC/ICE) then sees no real interface, produces no host
+# candidates, and real-time peers (GeForce Now) abort with 0xC0F2220E
+# (patches/wpe-webkit-bwrap-unshare-net-webrtc.patch).
+#
+# Two ways to make BubblewrapLauncher::shouldUnshareNetwork() skip --unshare-net:
+#   1. The patch adds a dedicated WPE branch honouring WEBKIT_ENABLE_NETWORK_ACCESS
+#      (clean, but needs the patched WebKit rebuild).
+#   2. remoteInspectorEnabled() also returns false for --unshare-net whenever
+#      WEBKIT_INSPECTOR_SERVER is set — works even without the rebuild, so it is
+#      a robust fallback. With ENABLE_DEVELOPER_EXTRAS=OFF no inspector port is
+#      bound, so loopback:0 is a harmless placeholder.
+export WEBKIT_ENABLE_NETWORK_ACCESS=1
+if [ -z "${WEBKIT_INSPECTOR_SERVER:-}" ]; then
+    export WEBKIT_INSPECTOR_SERVER=127.0.0.1:0
+fi
+
+# Use a private GStreamer 1.26 prefix (IMWB_GST_PREFIX=/opt/gst126) for
+# WebRTC/GeForce Now. Stock Ubuntu 24.04 ships GStreamer 1.24, whose webrtcbin
+# reads a=setup only on media level and rejects GFN's session-level
+# setup/missing mid -> setRemoteDescription collapses with 0xC0F2220E.
+# GStreamer 1.26.11 added "allow session level in setup attribute" + optional
+# mid. BubblewrapLauncher explicitly binds LD_LIBRARY_PATH/GST_PLUGIN_PATH and
+# --setenv's LD_LIBRARY_PATH into the web process, so the prefix reaches
+# WPEWebProcess. Opt-in only: when unset, the system GStreamer is used.
+if [ -n "${IMWB_GST_PREFIX:-}" ]; then
+    export LD_LIBRARY_PATH="$IMWB_GST_PREFIX/lib/x86_64-linux-gnu:$IMWB_GST_PREFIX/lib:${LD_LIBRARY_PATH:-}"
+    export GST_PLUGIN_PATH="$IMWB_GST_PREFIX/lib/x86_64-linux-gnu/gstreamer-1.0"
+    export GST_PLUGIN_SYSTEM_PATH=""
+    export GST_PLUGIN_SCANNER="$IMWB_GST_PREFIX/libexec/gstreamer-1.0/gst-plugin-scanner"
+    export GST_REGISTRY="$IMWB_GST_PREFIX/registry.bin"
+fi
+
 # Optional preferred GStreamer decoder, mirrored from the IMWB_VIDEO_DECODER
 # CMake flag (empty = GStreamer default). Must be exported here too so WebKit's
 # helper processes (WPEWebProcess, WPENetworkProcess) see it as well, not just

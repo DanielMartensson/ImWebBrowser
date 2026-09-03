@@ -12,6 +12,10 @@
 #include <cstdio>
 #include <cstring>
 
+#if ENABLE_GFN_INPUT_BRIDGE
+#include "gfn_input_bridge.js.h"
+#endif
+
 // ---------------------------------------------------------------------------
 // Frame export: WebKit hands us dmabuf-backed EGLImages on the GLib main
 // thread. We keep the newest one, bind it to a GL texture in
@@ -220,6 +224,13 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
     applySettings();
     connectSignals();
 
+#if ENABLE_GFN_INPUT_BRIDGE
+    // Optional GeForce NOW input bridge (IMWB_GFN_BRIDGE=1): armed when the
+    // loaded page is the GFN site, injected on load-finished.
+    if (g_getenv("IMWB_GFN_BRIDGE"))
+        gfnBridgeActive_ = true;
+#endif
+
     // xkbcommon keymap for keysym resolution. SDL scancodes are USB-HID usage
     // IDs, NOT evdev codes, so scancode+8 is wrong; instead we resolve the SDL
     // key to a keysym and look up the matching XKB keycode in the keymap.
@@ -282,6 +293,12 @@ void Browser::applySettings()
     webkit_settings_set_enable_webrtc(s, true);
     std::fprintf(stderr, "[webrtc] enable_webrtc now = %d\n",
                  webkit_settings_get_enable_webrtc(s));
+    // ImWebBrowser: dump page console messages (incl. GeForce Now's own JS
+    // errors) to stdout so failures like 0xC0F2221A can be diagnosed from the
+    // log instead of only from visuals we may not be able to inspect.
+#if ENABLE_CONSOLE_TO_STDOUT != 1
+    webkit_settings_set_enable_write_console_messages_to_stdout(s, true);
+#endif
 #if ENABLE_JAVASCRIPT != 1
     webkit_settings_set_enable_javascript(s, ENABLE_JAVASCRIPT);
 #endif
@@ -393,6 +410,10 @@ static void onLoadChanged(WebKitWebView* view, WebKitLoadEvent event, Browser* s
     case WEBKIT_LOAD_FINISHED:
         self->loading = false;
         self->progress = 1.f;
+#if ENABLE_GFN_INPUT_BRIDGE
+        if (self->gfnBridgeActive_)
+            self->startGfnInputBridge();
+#endif
         break;
     default:
         break;
@@ -482,6 +503,113 @@ static WebKitWebView* onCreateWindow(WebKitWebView*, WebKitNavigationAction* nav
     }
     return nullptr;
 }
+
+// ---------------------------------------------------------------------------
+// GeForce NOW input bridge (ENABLE_GFN_INPUT_BRIDGE)
+//
+// play.geforcenow.com's in-page client crashes on a "f.protocol" error in this
+// WebKit build before it creates the NVST input data channels, so the stream
+// never receives keyboard/mouse. We inject a small bridge that hooks
+// RTCPeerConnection, opens input_channel_v1 / input_channel_partially_reliable
+// on the active stream connection, completes the server handshake, and exposes
+// window.__imwbInput (see gfn_input_bridge.js). The host app then forwards real
+// input through that API.
+// ---------------------------------------------------------------------------
+#if ENABLE_GFN_INPUT_BRIDGE
+
+static void onGfnBridgeEvalDone(GObject*, GAsyncResult*, gpointer) {}
+
+// One-shot results of window.__imwbInput.status()? we only care about the
+// side effect: running arm() and logging via the page console.
+static gboolean gfnBridgePoll(Browser* self)
+{
+    self->gfnBridgePollSafe();
+    return G_SOURCE_CONTINUE;
+}
+
+// x11 keysym (as produced in Browser::key) -> Windows virtual-key code.
+static uint16_t gfnVkFromSym(uint32_t sym)
+{
+    if (sym >= 0x21 && sym <= 0x7e)
+        return static_cast<uint16_t>(toupper(sym));  // printable ASCII / letters/digits
+    switch (sym) {
+        case XKB_KEY_Escape: return 0x1b;
+        case XKB_KEY_Return: return 0x0d;
+        case XKB_KEY_KP_Enter: return 0x0d;
+        case XKB_KEY_Tab: return 0x09;
+        case XKB_KEY_BackSpace: return 0x08;
+        case XKB_KEY_space: return 0x20;
+        case XKB_KEY_Delete: return 0x2e;
+        case XKB_KEY_Insert: return 0x2d;
+        case XKB_KEY_Home: return 0x24;
+        case XKB_KEY_End: return 0x23;
+        case XKB_KEY_Page_Up: return 0x21;
+        case XKB_KEY_Page_Down: return 0x22;
+        case XKB_KEY_Up: return 0x26;
+        case XKB_KEY_Down: return 0x28;
+        case XKB_KEY_Left: return 0x25;
+        case XKB_KEY_Right: return 0x27;
+        case XKB_KEY_F1: return 0x70; case XKB_KEY_F2: return 0x71; case XKB_KEY_F3: return 0x72;
+        case XKB_KEY_F4: return 0x73; case XKB_KEY_F5: return 0x74; case XKB_KEY_F6: return 0x75;
+        case XKB_KEY_F7: return 0x76; case XKB_KEY_F8: return 0x77; case XKB_KEY_F9: return 0x78;
+        case XKB_KEY_F10: return 0x79; case XKB_KEY_F11: return 0x7a; case XKB_KEY_F12: return 0x7b;
+        default: return 0;
+    }
+}
+
+void Browser::gfnBridgeEval(const char* js)
+{
+    if (!view_)
+        return;
+    webkit_web_view_evaluate_javascript(view_, js, -1, nullptr, nullptr, nullptr, onGfnBridgeEvalDone, nullptr);
+}
+
+void Browser::gfnBridgePollSafe()
+{
+    // Keep calling arm() so channels open as soon as the stream PC exists;
+    // status() is only for console visibility (it piggybacks on the same poll).
+    gfnBridgeEval("window.__imwbInput && window.__imwbInput.arm && window.__imwbInput.arm();");
+}
+
+// Evaluate a short snippet only when the bridge is active.
+#include <cstdarg>
+void Browser::gfnBridgeTap(const char* fmt, ...)
+{
+    if (!gfnBridgeActive_ || !view_)
+        return;
+    char body[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(body, sizeof(body), fmt, ap);
+    va_end(ap);
+    std::string js = "window.__imwbInput && (";
+    js += body;
+    js += ");";
+    gfnBridgeEval(js.c_str());
+}
+
+void Browser::startGfnInputBridge()
+{
+    if (!view_)
+        return;
+    // Inject the bridge script; it is idempotent (guards on window.__imwbBridge),
+    // so re-injecting across navigations is safe. The poll timer is added once.
+    gfnBridgeEval(gfnInputBridgeJS);
+    if (!gfnBridgeInjected_) {
+        gfnBridgeInjected_ = true;
+        g_message("[gfnbridge] injection sent; polling for stream connection");
+        g_timeout_add(500, G_SOURCE_FUNC(gfnBridgePoll), this);
+    }
+}
+
+// Map WPE/SDL mouse button (1..5) to the GFN protocol button (1..5 same).
+static int gfnMouseButton(uint8_t sdlButton)
+{
+    // SDL: 1=left,2=middle,3=right,4=back,5=forward. GFN uses same 1..5.
+    return (sdlButton >= 1 && sdlButton <= 5) ? sdlButton : 0;
+}
+
+#endif  // ENABLE_GFN_INPUT_BRIDGE
 
 void Browser::connectSignals()
 {
@@ -604,6 +732,16 @@ void Browser::reload(bool bypassCache)
 
 void Browser::pointerMotion(float x, float y)
 {
+#if ENABLE_GFN_INPUT_BRIDGE
+    if (gfnBridgeActive_) {
+        // Send absolute coordinates within the full window (matches GFN's
+        // non-pointer-lock MOUSE_ABS path). The server scales x/y against the
+        // extent (window w/h) onto the remote desktop. Sending absolute
+        // positions (rather than deltas, which drift/blend when not in
+        // pointer lock) is what fixes the offset controls.
+        gfnBridgeTap("__imwbInput.mouseAbs(%d,%d,%d,%d)", (int)roundf(x), (int)roundf(y), width_, height_);
+    }
+#endif
     // Mirror Cog/reference: motion carries the pressed-buttons bitmask so
     // WebKit can maintain drag state between button transitions.
     wpe_input_pointer_event ev = {wpe_input_pointer_event_type_motion, uint32_t(g_get_monotonic_time() / 1000),
@@ -631,6 +769,14 @@ void Browser::pointerButton(float x, float y, uint8_t sdlButton, bool pressed)
     else
         pressedButtons_ &= ~bit;
 
+#if ENABLE_GFN_INPUT_BRIDGE
+    if (gfnBridgeActive_) {
+        const int gb = gfnMouseButton(sdlButton);
+        if (gb)
+            gfnBridgeTap("__imwbInput.mouseButton(%d,%d)", (int)(pressed ? 8 : 9), gb);
+    }
+#endif
+
     wpe_input_pointer_event ev = {wpe_input_pointer_event_type_button, uint32_t(g_get_monotonic_time() / 1000),
                                   int(x), int(std::max(0.f, y)), btn, pressedButtons_};
     if (kDebugInput)
@@ -641,6 +787,15 @@ void Browser::pointerButton(float x, float y, uint8_t sdlButton, bool pressed)
 
 void Browser::scroll(float x, float y, float dx, float dy)
 {
+#if ENABLE_GFN_INPUT_BRIDGE
+    if (gfnBridgeActive_) {
+        // One wheel notch up == +1 (positive y). GFN wheel deltas are in
+        // physical units; forward the summed notches for the primary axis.
+        const float total = dx + dy;
+        if (total != 0.f)
+            gfnBridgeTap("__imwbInput.mouseWheel(%d)", (int)roundf(total));
+    }
+#endif
     wpe_input_axis_2d_event ev = {};
     ev.base.type = static_cast<wpe_input_axis_event_type>(wpe_input_axis_event_type_mask_2d |
                    wpe_input_axis_event_type_motion_smooth);
@@ -783,6 +938,26 @@ void Browser::key(uint32_t sdlScancode, uint16_t sdlMods, bool pressed)
         mods |= wpe_input_keyboard_modifier_meta;
 
     xkb_state_update_key(xkbState_, keycode, pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
+
+#if ENABLE_GFN_INPUT_BRIDGE
+    if (gfnBridgeActive_) {
+        // GFN modifier byte (OpenNOW modifierFlags): shift=0x01 ctrl=0x02
+        // alt=0x04 meta=0x08; not set for the modifier key itself.
+        uint16_t gmod = 0;
+        const bool isShift = (sym == XKB_KEY_Shift_L || sym == XKB_KEY_Shift_R);
+        const bool isCtrl = (sym == XKB_KEY_Control_L || sym == XKB_KEY_Control_R);
+        const bool isAlt = (sym == XKB_KEY_Alt_L || sym == XKB_KEY_Alt_R);
+        const bool isMeta = (sym == XKB_KEY_Super_L || sym == XKB_KEY_Super_R || sym == XKB_KEY_Meta_L);
+        if ((sdlMods & SDL_KMOD_SHIFT) && !isShift) gmod |= 0x01;
+        if ((sdlMods & SDL_KMOD_CTRL) && !isCtrl) gmod |= 0x02;
+        if ((sdlMods & SDL_KMOD_ALT) && !isAlt) gmod |= 0x04;
+        if ((sdlMods & SDL_KMOD_GUI) && !isMeta) gmod |= 0x08;
+        const uint16_t vk = gfnVkFromSym(sym);
+        if (vk) {
+            gfnBridgeTap("__imwbInput.key(%d,%u,%u,0)", (int)(pressed ? 3 : 4), vk, gmod);
+        }
+    }
+#endif
 
     if (pressed && handleKeyBinding(sym, mods))
         return;

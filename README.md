@@ -239,13 +239,45 @@ project is built against** (the Watermelon-Wine Yocto layer sets
 matching `gstreamer1.0-plugins-*` packages. **`libnice` (GStreamer's ICE library)
 covers the actual transport** — that feature ships as the separate **`gstreamer1.0-nice`**
 package; without it `webrtcbin` cannot do ICE/STUN/TURN and WebRTC page sessions
-fail to connect (observed on the real-world wires: GeForce Now aborts at ~90%
-load with `0xC0F2220E`, "The game quit unexpectedly"). Do not confuse `libnice`
+fail to connect (observed on the real-world wires). Do not confuse `libnice`
 with the unrelated `librice` build option which this configuration does **not**
 use.
 
+##### GStreamer 1.26.11 prefix (`IMWB_GST_PREFIX`)
+
+Dev-image WebRTC uses a **privately built GStreamer 1.26.11** prefix
+(`/opt/gst126`, mono-repo tag `1.26.11`) rather than the distro's GStreamer
+1.24, because the stock `webrtcbin` fails GeForce Now's SDP exchange with
+`Could not find caps for mline 0` / `media 0 is missing or contains an empty
+'setup' attribute` (`0xC0F2220E`). The 1.26.11 `webrtcbin` fixes DTLS
+`a=setup` attribute inheritance at the session level that 1.24 mishandles when
+the peer puts transport attributes on the `m=` line.
+
+The `./run` / `run-native.sh` launchers apply the prefix **opt-in**, when
+`IMWB_GST_PREFIX` is set:
+
+```bash
+export IMWB_GST_PREFIX=/opt/gst126
+./run --kiosk https://play.geforcenow.com
+```
+
+That block exports `LD_LIBRARY_PATH` (prefix libs before the system's),
+`GST_PLUGIN_PATH`/`GST_PLUGIN_SYSTEM_PATH=""` (plugin registry isolated to the
+prefix), `GST_PLUGIN_SCANNER` (points WebKit's compiled-in default away from
+the distro scanner toward `/opt/gst126/libexec/gstreamer-1.0/gst-plugin-scanner`,
+avoiding a scanner/library ABI mismatch), and a private `GST_REGISTRY`. WPE's
+`BubblewrapLauncher` explicitly forwards `LD_LIBRARY_PATH`/`GST_PLUGIN_PATH`
+(`bindPathVar`) and `--setenv`s `LD_LIBRARY_PATH` into the networked web
+process, so the prefix actually reaches the process running `webrtcbin`
+(verified: the sandboxed WPEWebProcess loads
+`libgstreamer-1.0.so.0.2611.0`, `libgstwebrtc`, `libgstnice` from the prefix).
+The prefix here ships no `avdec_av1` (libva/ffmpeg 6.1 without libaom) — note
+it only if you later chase AV1 software decode over this prefix; H.264/HEVC/VP8/VP9
+decode fine.
+
 > To confirm the running engine exposes GstWebRTC, from the target shell:
-> `gst-inspect-1.0 webrtcbin`.
+> `gst-inspect-1.0 webrtcbin`. With the prefix active:
+> `IMWB_GST_PREFIX=/opt/gst126 /opt/gst126/bin/gst-inspect-1.0 webrtcbin`.
 
 Reference platforms:
 

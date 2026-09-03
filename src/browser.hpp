@@ -106,6 +106,19 @@ public:
         return b;
     }
 
+#if ENABLE_GFN_INPUT_BRIDGE
+    // GeForce NOW input bridge: forwards real keyboard/mouse to the cloud
+    // session over WebRTC data channels (input_channel_v1 / _partially_reliable).
+    void startGfnInputBridge();
+    void setGfnBridgeActive(bool active) { gfnBridgeActive_ = active; }
+    bool gfnBridgeActive_ = false;
+    bool gfnBridgeInjected_ = false;
+    float gfnLastX_ = -1.f, gfnLastY_ = -1.f;
+    void gfnBridgeEval(const char* js);
+    void gfnBridgePollSafe();
+    void gfnBridgeTap(const char* fmt, ...) __attribute__((format(printf, 2, 3)));
+#endif
+
     // A navigation may swallow a pending button-up (page swapped mid-click),
     // leaving WebKit stuck in "pressed" state: every later click then acts as
     // a drag. The embedder consumes this flag once and sends a synthetic

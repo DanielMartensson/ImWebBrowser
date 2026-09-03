@@ -211,6 +211,34 @@ trap cleanup EXIT
 # ---------------------------------------------------------------------------
 # 3. Run the browser.
 # ---------------------------------------------------------------------------
+# Share the host network with the WebKit web process. WebKit 2.52.6's
+# bubblewrap sandbox launches WPEWebProcess with --unshare-net so the web
+# process gets its own netns with only loopback -> libnice/WebRTC sees no real
+# interface -> no host ICE candidates -> real-time peers (GeForce Now) abort
+# with 0xC0F2220E (patches/wpe-webkit-bwrap-unshare-net-webrtc.patch).
+# WEBKIT_ENABLE_NETWORK_ACCESS is the clean switch added by the patch; setting
+# WEBKIT_INSPECTOR_SERVER is a robustness fallback that makes
+# shouldUnshareNetwork() skip --unshare-net even on an unpatched build.
+export WEBKIT_ENABLE_NETWORK_ACCESS=1
+if [ -z "${WEBKIT_INSPECTOR_SERVER:-}" ]; then
+    export WEBKIT_INSPECTOR_SERVER=127.0.0.1:0
+fi
+
+# Use a private GStreamer 1.26 prefix (IMWB_GST_PREFIX=/opt/gst126) for
+# WebRTC/GeForce Now. Stock Ubuntu 24.04 ships GStreamer 1.24, whose webrtcbin
+# reads a=setup only on media level and rejects GFN's session-level
+# setup/missing mid -> setRemoteDescription collapses with 0xC0F2220E.
+# GStreamer 1.26.11 added "allow session level in setup attribute" + optional
+# mid. BubblewrapLauncher explicitly binds LD_LIBRARY_PATH/GST_PLUGIN_PATH and
+# --setenv's LD_LIBRARY_PATH into the web process, so the prefix reaches
+# WPEWebProcess. Opt-in only: when unset, the system GStreamer is used.
+if [ -n "${IMWB_GST_PREFIX:-}" ]; then
+    export LD_LIBRARY_PATH="$IMWB_GST_PREFIX/lib/x86_64-linux-gnu:$IMWB_GST_PREFIX/lib:${LD_LIBRARY_PATH:-}"
+    export GST_PLUGIN_PATH="$IMWB_GST_PREFIX/lib/x86_64-linux-gnu/gstreamer-1.0"
+    export GST_PLUGIN_SYSTEM_PATH=""
+    export GST_PLUGIN_SCANNER="$IMWB_GST_PREFIX/libexec/gstreamer-1.0/gst-plugin-scanner"
+    export GST_REGISTRY="$IMWB_GST_PREFIX/registry.bin"
+fi
 launch_app() {
     # SDL_VIDEO_WAYLAND_MODE_EMULATION=0 avoids a SIGFPE (divide-by-zero) in
     # SDL3 3.4.14's handle_wl_output_done() while libdecor-gtk drains the

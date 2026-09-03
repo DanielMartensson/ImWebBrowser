@@ -257,12 +257,31 @@ footer{margin-top:90px;padding:34px 0 46px;border-top:1px solid var(--line);colo
      components (≥ 1.20) and OpenSSL ≥ 3.0 in the runtime image, plus <code>libnice</code> for ICE
      transport — shipped as the separate <span class="opt">gstreamer1.0-nice</span> package. Without
      <span class="opt">gstreamer1.0-nice</span>, <code>webrtcbin</code> cannot do ICE/STUN/TURN and
-     WebRTC sessions fail to connect (real-world symptom: GeForce Now aborts at ~90% load with
-     <code>0xC0F2220E</code>, “The game quit unexpectedly”). (Not to be confused with the unrelated
-     <code>librice</code> build option.) ImWebBrowser
-     runs GstWebRTC on both the Linux dev PC and the STM32MP257F target (built for Vulkan +
-     GStreamer hardware decode). Verify the live engine with <code>gst-inspect-1.0 webrtcbin</code> —
-     and that ICE is actually available with <code>gst-inspect-1.0 nicesrc</code>.</p>
+      WebRTC sessions fail to connect (real-world symptom: GeForce Now aborts at ~90% load with
+      <code>0xC0F2220E</code>, “The game quit unexpectedly”). (Not to be confused with the unrelated
+      <code>librice</code> build option.) ImWebBrowser
+      runs GstWebRTC on both the Linux dev PC and the STM32MP257F target (built for Vulkan +
+      GStreamer hardware decode). Verify the live engine with <code>gst-inspect-1.0 webrtcbin</code> —
+      and that ICE is actually available with <code>gst-inspect-1.0 nicesrc</code>.</p>
+
+  <h3 style="margin-top:26px;font-size:18px;color:var(--acc);font-family:var(--mono)">GStreamer 1.26.11 prefix (<code>IMWB_GST_PREFIX</code>)</h3>
+  <p style="color:var(--dim)">Dev-image WebRTC rides a <b>privately built GStreamer 1.26.11</b> prefix
+     (<span class="opt">/opt/gst126</span>, mono-repo tag <code>1.26.11</code>) rather than the distro’s
+     1.24, because stock <code>webrtcbin</code> fails GeForce Now’s SDP exchange with
+     <code>Could not find caps for mline 0</code> / <code>media 0 is missing or contains an empty
+     'setup' attribute</code> (<code>0xC0F2220E</code>). The 1.26.11 <code>webrtcbin</code> fixes DTLS
+     <code>a=setup</code> inheritance at the session level that 1.24 mishandles when the peer puts
+     transport attributes on the <code>m=</code> line.</p>
+  <p style="color:var(--dim)">The <code>./run</code> / <code>run-native.sh</code> launchers apply it
+     opt-in via <span class="opt">IMWB_GST_PREFIX</span>: <code>export IMWB_GST_PREFIX=/opt/gst126</code>.
+     That block exports <code>LD_LIBRARY_PATH</code> (prefix libs first), <code>GST_PLUGIN_PATH</code> +
+     <code>GST_PLUGIN_SYSTEM_PATH=""</code> (registry isolated), <code>GST_PLUGIN_SCANNER</code> (to
+     <span class="opt">/opt/gst126/libexec/gstreamer-1.0/gst-plugin-scanner</span>, avoiding the distro
+     scanner ABI mismatch) and a private <code>GST_REGISTRY</code>. WPE’s <code>BubblewrapLauncher</code>
+     forwards <code>LD_LIBRARY_PATH</code>/<code>GST_PLUGIN_PATH</code> into the networked web process
+     (verified: the sandboxed WPEWebProcess loads <code>libgstreamer-1.0.so.0.2611.0</code>, <code>libgstwebrtc</code>,
+     <code>libgstnice</code> from the prefix). The prefix ships no <code>avdec_av1</code> (ffmpeg 6.1 without
+     libaom) — note it if you later chase AV1 software decode; H.264/HEVC/VP8/VP9 decode fine.</p>
 
   <h3 style="margin-top:34px;font-size:21px;color:var(--acc);font-family:var(--mono)">Video decoder</h3>
   <p style="color:var(--dim)"><span class="opt">IMWB_VIDEO_DECODER<span class="def">=""</span></span> picks a

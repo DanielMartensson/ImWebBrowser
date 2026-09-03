@@ -22,6 +22,7 @@
 #cmakedefine01 ENABLE_GSTREAMER
 #cmakedefine01 ENABLE_DEVELOPER_EXTRAS
 #cmakedefine01 ENABLE_BENCHMARK_HARNESS
+#cmakedefine01 ENABLE_GFN_INPUT_BRIDGE
 
 // Preferred GStreamer video decoder to force to MAX rank at startup
 // (empty string = leave GStreamer's own ranking; see IMWB_VIDEO_DECODER).

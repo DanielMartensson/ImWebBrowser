@@ -102,6 +102,7 @@ option(ENABLE_ENCRYPTED_MEDIA   "Enable Encrypted Media Extensions (DRM)" ON)
 option(ENABLE_GSTREAMER         "Require and verify the GStreamer media stack" ON)
 option(ENABLE_DEVELOPER_EXTRAS  "Enable the WebKit Web Inspector" OFF)
 option(ENABLE_BENCHMARK_HARNESS "Build the automated WebGL Aquarium benchmark harness" OFF)
+option(ENABLE_GFN_INPUT_BRIDGE "Build the GeForce NOW input bridge (WebRTC data-channel input forwarding)" OFF)
 
 # Preferred GStreamer video decoder, applied at runtime via
 # GST_PLUGIN_FEATURE_RANK when ENABLE_GSTREAMER is on. Empty (default) leaves
@@ -140,7 +141,7 @@ message(STATUS "  core     : js=${ENABLE_JAVASCRIPT} webgl=${ENABLE_WEBGL} canva
 message(STATUS "  a11y     : caret=${ENABLE_CARET_BROWSING} spatial=${ENABLE_SPATIAL_NAVIGATION} tabcycle=${ENABLE_TAB_FOCUS_CYCLE} resize=${ENABLE_TEXT_AREAS_RESIZE} gestures=${ENABLE_BF_GESTURES}")
 message(STATUS "  media    : playback=${ENABLE_MEDIA} audio=${ENABLE_AUDIO} autoplay=${ENABLE_AUTOPLAY} mediacaps=${ENABLE_MEDIA_CAPABILITIES} eme=${ENABLE_ENCRYPTED_MEDIA} gstreamer=${ENABLE_GSTREAMER}")
 message(STATUS "  hw       : mediaHwTypes='${IMWB_MEDIA_HW_TYPES}' decoder='${IMWB_VIDEO_DECODER}'")
-message(STATUS "  misc     : webrtc=${ENABLE_WEBRTC} devtools=${ENABLE_DEVELOPER_EXTRAS} bench=${ENABLE_BENCHMARK_HARNESS}")
+message(STATUS "  misc     : webrtc=${ENABLE_WEBRTC} devtools=${ENABLE_DEVELOPER_EXTRAS} bench=${ENABLE_BENCHMARK_HARNESS} gfninput=${ENABLE_GFN_INPUT_BRIDGE}")
 message(STATUS "")
 
 # ---------------------------------------------------------------------------

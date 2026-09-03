@@ -1,0 +1,29 @@
+diff --git a/subprojects/gst-plugins-bad/ext/webrtc/gstwebrtcbin.c b/subprojects/gst-plugins-bad/ext/webrtc/gstwebrtcbin.c
+index 62c9988..7d755c6 100644
+--- a/subprojects/gst-plugins-bad/ext/webrtc/gstwebrtcbin.c
++++ b/subprojects/gst-plugins-bad/ext/webrtc/gstwebrtcbin.c
+@@ -2148,6 +2148,24 @@ out:
+   if (!ret)
+     GST_DEBUG_OBJECT (trans, "Could not find caps for mline %u", media_idx);
+ 
++  /* ImWebBrowser: For a receive-only audio transceiver (e.g. a gaming peer
++   * that sends Opus) we may have no local caps/pad to derive a codec from.
++   * Without any audio caps the audio m-line is dropped from our SDP answer
++   * AND the incoming audio packets (pt 111) have no clock-rate, so the rtp
++   * jitterbuffer drops them -> the peer sees no audio and aborts the session.
++   * Advertise a standard Opus receive-only m-line so audio flows correctly. */
++  if (!ret && ret == NULL && rtp_trans->kind == GST_WEBRTC_KIND_AUDIO) {
++    ret = gst_caps_new_simple ("application/x-rtp",
++        "media", G_TYPE_STRING, "audio",
++        "encoding-name", G_TYPE_STRING, "OPUS",
++        "payload", G_TYPE_INT, 111,
++        "clock-rate", G_TYPE_INT, 48000,
++        "encoding-params", G_TYPE_STRING, "2",
++        NULL);
++    GST_DEBUG_OBJECT (webrtc, "ImWebBrowser: using Opus fallback caps for "
++        "audio transceiver %" GST_PTR_FORMAT, rtp_trans);
++  }
++
+   return ret;
+ }
+ 

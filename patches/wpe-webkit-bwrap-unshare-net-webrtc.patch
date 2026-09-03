@@ -1,0 +1,46 @@
+From: ImWebBrowser
+Subject: [PATCH] WPE: allow sharing the host network with the web process for
+ WebRTC/ICE (WEBKIT_ENABLE_NETWORK_ACCESS)
+
+The bubblewrap sandbox (ENABLE_BUBBLEWRAP_SANDBOX=ON) launches the web
+process with --unshare-net unless remote inspector support is enabled
+(BubblewrapLauncher::shouldUnshareNetwork). GTK already exempts its web
+process from --unshare-net when X11 runs over TCP, but the WPE port has
+no such exception, so on WPE the web process always lands in its own
+network namespace where only loopback exists.
+
+The WPE web process performs its own WebRTC/ICE candidate gathering (via
+GstWebRTC + libnice). With only loopback visible it can enumerate no real
+interface, emits no host ICE candidates, and real-time peers (e.g. GeForce
+Now) can never establish a connection (error 0xC0F2220E).
+
+Mirror the GTK behaviour and let the WPE web process share the host
+network when the user opts in via the WEBKIT_ENABLE_NETWORK_ACCESS
+environment variable, keeping the sandbox isolated by default.
+
+diff --git a/Source/WebKit/UIProcess/Launcher/glib/BubblewrapLauncher.cpp b/Source/WebKit/UIProcess/Launcher/glib/BubblewrapLauncher.cpp
+index 1111111..2222222 100644
+--- a/Source/WebKit/UIProcess/Launcher/glib/BubblewrapLauncher.cpp
++++ b/Source/WebKit/UIProcess/Launcher/glib/BubblewrapLauncher.cpp
+@@ -717,6 +717,21 @@ static bool shouldUnshareNetwork(ProcessLauncher::ProcessType processType, char
+     if (remoteInspectorEnabled())
+         return false;
+ 
++#if PLATFORM(WPE)
++    // The WPE web process performs its own WebRTC/ICE candidate gathering (via
++    // GstWebRTC + libnice), which needs to enumerate the host network interfaces
++    // to produce host candidates. GTK already exempts its web process from
++    // --unshare-net for X11-over-TCP below; the WPE port has no such exception,
++    // so the web process is dropped into a netns with only loopback. libnice then
++    // sees no real interface, emits no host candidates, and real-time peers
++    // (e.g. GeForce Now) can never connect (0xC0F2220E). Let the WPE web process
++    // share the host network when opted in, keeping the sandbox isolated by
++    // default.
++    if (processType == ProcessLauncher::ProcessType::Web
++        && g_getenv("WEBKIT_ENABLE_NETWORK_ACCESS"))
++        return false;
++#endif
++
+     // xdg-dbus-proxy needs access to host abstract sockets to connect to the a11y bus. Secure
+     // host services must not use abstract sockets.
+     if (processType == ProcessLauncher::ProcessType::DBusProxy)

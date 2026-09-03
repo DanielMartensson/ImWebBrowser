@@ -1,0 +1,16 @@
+diff --git a/subprojects/gst-plugins-bad/ext/webrtc/gstwebrtcbin.c b/subprojects/gst-plugins-bad/ext/webrtc/gstwebrtcbin.c
+index 62c9988..324280a 100644
+--- a/subprojects/gst-plugins-bad/ext/webrtc/gstwebrtcbin.c
++++ b/subprojects/gst-plugins-bad/ext/webrtc/gstwebrtcbin.c
+@@ -8633,7 +8633,10 @@ gst_webrtc_bin_set_property (GObject * object, guint prop_id,
+       break;
+     case PROP_BUNDLE_POLICY:
+       if (g_value_get_enum (value) == GST_WEBRTC_BUNDLE_POLICY_BALANCED) {
+-        GST_ERROR_OBJECT (object, "Balanced bundle policy not implemented yet");
++        GST_DEBUG_OBJECT (object,
++            "Balanced bundle policy not implemented; mapping to max-bundle "
++            "(ImWebBrowser build)");
++        webrtc->bundle_policy = GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE;
+       } else {
+         webrtc->bundle_policy = g_value_get_enum (value);
+       }
