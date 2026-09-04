@@ -274,8 +274,8 @@ Levers to keep it that way:
 ## Memory — the real footprint (STM32MP257F: 2 GB RAM)
 
 Measured on the dev W540 against the same WPE WebKit 2.52.6, so it predicts
-the target's shared code path (the SoC build differs only in WebKit $
-flags and the VPU decoder).
+the target's shared code path (the SoC build differs only in WebKit
+build flags and the VPU decoder).
 
 **Read PSS, not RSS.** Per-process RSS double-counts shared library pages:
 RSS shows WPEWebProcess as ~540 MB during GeForce NOW, but the *true
