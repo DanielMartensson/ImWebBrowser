@@ -20,7 +20,23 @@
 # window — NO Wayland compositor is needed: it is a plain SDL app.
 #
 # Usage:
-#   ./run.sh [browser args...]   e.g. ./run.sh --kiosk https://example.com
+#   ./run.sh [browser args...]
+#
+# Browser flags (mirrors src/main.cpp):
+#   [URL]                   start page (default: https://duckduckgo.com)
+#   --kiosk                 fullscreen kiosk (F11 toggles)
+#   --gfn                   GeForce NOW kiosk preset: play.geforcenow.com in
+#                           fullscreen with the input bridge + autoplay on
+#   --kmsdrm                direct DRM/KMS video driver (no display server)
+#   --wayland|--x11         pick the Wayland or X11 video driver
+#   --vulkan|--opengles     assert the compile-time rendering backend
+#   --help                  list all flags
+#
+#   Common examples:
+#     dev PC:                ./run.sh
+#     GFN kiosk on X11:      ./run.sh --gfn
+#     GFN kiosk, no display: ./run.sh --gfn --kmsdrm
+#     plain kiosk on a URL:  ./run.sh --kiosk https://example.com
 #
 # Environment overrides:
 #   IMWB_PREFIX=...        bundled prefix (default: deps/install)
@@ -28,6 +44,41 @@
 #
 set -euo pipefail
 cd "$(dirname "$0")"
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    cat <<'EOF'
+run.sh — ImWebBrowser launcher (dev PC with bundled deps, or target /usr).
+
+Usage:
+  ./run.sh [options] [URL]
+
+Browser options (passed straight through to imwebbrowser):
+  [URL]               start page (default: https://duckduckgo.com)
+  --gfn               GeForce NOW kiosk preset: fullscreen, play.geforcenow.com,
+                      input bridge + autoplay on, ImGui UI disconnected
+                      (direct pipeline). Quit with Ctrl+Q.
+  --kiosk             plain fullscreen kiosk (F11 toggles, Ctrl+Q quits)
+  --kmsdrm            DRM/KMS video driver (no display server, needs non-X session)
+  --wayland           Wayland video driver (needs a running compositor)
+  --x11               X11 video driver (dev PC default)
+  --vulkan|--opengles assert the compile-time rendering backend
+  -h, --help          this help
+
+Environment:
+  IMWB_PREFIX=...         bundled deps prefix      (default: $PWD/deps/install)
+  IMWB_BUILD_DIR=...      build dir                (default: build)
+  IMWB_VIDEO_DECODER=...  force a GStreamer decoder (e.g. v4l2slh264dec)
+  IMWB_GFN_BRIDGE=1       arm the GFN input bridge (implied by --gfn)
+  IMWB_DEBUG_INPUT=1      log SDL input events
+
+Examples:
+  ./run.sh                          dev PC, windowed
+  ./run.sh --gfn                    GFN kiosk (X11)
+  ./run.sh --gfn --kmsdrm           GFN kiosk, direct DRM, no Weston
+  ./run.sh --kiosk https://example.com
+EOF
+    exit 0
+fi
 
 : "${IMWB_PREFIX:=$PWD/deps/install}"
 : "${IMWB_BUILD_DIR:=build}"

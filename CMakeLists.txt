@@ -102,7 +102,11 @@ option(ENABLE_ENCRYPTED_MEDIA   "Enable Encrypted Media Extensions (DRM)" ON)
 option(ENABLE_GSTREAMER         "Require and verify the GStreamer media stack" ON)
 option(ENABLE_DEVELOPER_EXTRAS  "Enable the WebKit Web Inspector" OFF)
 option(ENABLE_BENCHMARK_HARNESS "Build the automated WebGL Aquarium benchmark harness" OFF)
-option(ENABLE_GFN_INPUT_BRIDGE "Build the GeForce NOW input bridge (WebRTC data-channel input forwarding)" OFF)
+# GeForce NOW: --gfn mode is useless without this — the bridge injects the
+# NVST input data-channel code (game keyboard/mouse) and unmutes the game
+# stream element (game audio) on play.geforcenow.com. Enabled by default so
+# the --gfn kiosk preset works on any build; cost is a few KB of JS.
+option(ENABLE_GFN_INPUT_BRIDGE "Build the GeForce NOW input bridge (WebRTC data-channel input forwarding)" ON)
 
 # Preferred GStreamer video decoder, applied at runtime via
 # GST_PLUGIN_FEATURE_RANK when ENABLE_GSTREAMER is on. Empty (default) leaves

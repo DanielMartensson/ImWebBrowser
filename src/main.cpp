@@ -58,11 +58,35 @@ namespace {
 
 struct Args {
     const char* url = "https://duckduckgo.com";
-    bool kiosk = false;
+    bool urlGiven = false;             // a positional (non-flag) argument was passed
+    bool kiosk = false;                // fullscreen single-purpose deployment mode
+    bool gfn = false;                  // GeForce NOW preset: implies kiosk + GFN URL + input bridge
+    bool wantVulkan = false;           // --vulkan / --opengles: assert the compile-time backend
+    bool wantGles = false;
+    const char* videoDriver = nullptr; // --kmsdrm / --wayland / --x11: SDL3 video driver
 #if ENABLE_BENCHMARK_HARNESS
     int benchFish = 0;
 #endif  // ENABLE_BENCHMARK_HARNESS
 };
+
+void printUsage()
+{
+    std::fprintf(stderr,
+                 "Usage: imwebbrowser [options] [URL]\n"
+                 "\n"
+                 "  [URL]           start page (default: https://duckduckgo.com)\n"
+                 "  --kiosk         fullscreen kiosk (no toolbar, WM close refused, F11 toggles)\n"
+                 "  --gfn           GeForce NOW kiosk preset: implies --kiosk, points at\n"
+                 "                  play.geforcenow.com unless a URL is given, arms the input\n"
+                 "                  bridge and drops the autoplay user-gesture requirement\n"
+                 "  --kmsdrm        DRM/KMS video driver (no display server; needs a non-X\n"
+                 "                  session, e.g. getty: tty1 -> auto login)\n"
+                 "  --wayland       Wayland video driver (needs a running Wayland compositor)\n"
+                 "  --x11           X11 video driver (default on the dev PC)\n"
+                 "  --vulkan        assert the binary was built with -DIMWB_BACKEND_VULKAN=ON\n"
+                 "  --opengles      assert the binary was built with the OpenGL ES backend\n"
+                 "  -h, --help      show this help\n");
+}
 
 Args parseArgs(int argc, char** argv)
 {
@@ -70,13 +94,62 @@ Args parseArgs(int argc, char** argv)
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--kiosk") == 0)
             a.kiosk = true;
+        else if (strcmp(argv[i], "--gfn") == 0)
+            a.gfn = true;
+        else if (strcmp(argv[i], "--kmsdrm") == 0)
+            a.videoDriver = "kmsdrm";
+        else if (strcmp(argv[i], "--wayland") == 0)
+            a.videoDriver = "wayland";
+        else if (strcmp(argv[i], "--x11") == 0)
+            a.videoDriver = "x11";
+        else if (strcmp(argv[i], "--vulkan") == 0)
+            a.wantVulkan = true;
+        else if (strcmp(argv[i], "--opengles") == 0)
+            a.wantGles = true;
+        else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printUsage();
+            std::exit(0);
+        }
 #if ENABLE_BENCHMARK_HARNESS
         else if (strcmp(argv[i], "--bench-fish") == 0 && i + 1 < argc)
             a.benchFish = atoi(argv[++i]);
 #endif  // ENABLE_BENCHMARK_HARNESS
-        else if (argv[i][0] != '-')
+        else if (argv[i][0] != '-') {
             a.url = argv[i];
+            a.urlGiven = true;
+        }
     }
+
+    // GeForce NOW preset: a fullscreen kiosk pointed at the GFN storefront
+    // (play.geforcenow.com) unless the caller overrode the URL. Kiosk is
+    // mandatory here: fullscreen only, no toolbar, no WM close, and the
+    // direct blit present path (--gfn disconnects the ImGui UI layer).
+    if (a.gfn) {
+        a.kiosk = true;
+        if (!a.urlGiven)
+            a.url = "https://play.geforcenow.com/";
+        std::fprintf(stderr, "[gfn] GeForce NOW preset: kiosk=on url='%s'\n", a.url);
+    }
+
+    // The rendering backend is fixed at build time; --vulkan/--opengles only
+    // assert it, so a mismatched run.sh invocation fails loudly instead of
+    // silently presenting a window built for the other backend.
+#ifndef IMWB_BACKEND_VULKAN
+    if (a.wantVulkan) {
+        std::fprintf(stderr,
+                     "error: this binary was built with the OpenGL ES backend; "
+                     "rebuild with -DIMWB_BACKEND_VULKAN=ON to use --vulkan\n");
+        std::exit(1);
+    }
+#else
+    if (a.wantGles) {
+        std::fprintf(stderr,
+                     "error: this binary was built with the Vulkan backend; "
+                     "rebuild without -DIMWB_BACKEND_VULKAN to use --opengles\n");
+        std::exit(1);
+    }
+#endif  // IMWB_BACKEND_VULKAN
+
 #if ENABLE_BENCHMARK_HARNESS
     // Make the fish count foolproof: --bench-fish N wins over whatever is in
     // the URL (guards against the common 'fishNum' typo, which the page
@@ -107,6 +180,13 @@ Args parseArgs(int argc, char** argv)
 int main(int argc, char** argv)
 {
     const Args args = parseArgs(argc, argv);
+
+    // GFN preset: arm the input bridge exactly like an explicit
+    // IMWB_GFN_BRIDGE=1 on the command line (read by browser.cpp).
+    if (args.gfn) {
+        g_setenv("IMWB_GFN_BRIDGE", "1", TRUE);
+        std::fprintf(stderr, "[gfn] input bridge armed (IMWB_GFN_BRIDGE=1)\n");
+    }
 
     // Preferred GStreamer video decoder (IMWB_VIDEO_DECODER, wired in via
     // config.h). Forced to MAX rank before WebKit boots GStreamer so the
@@ -264,6 +344,15 @@ int main(int argc, char** argv)
     }
 #endif  // IMWB_DEBUG_GUARDRAIL
 
+    // --kmsdrm/--wayland/--x11: pick the SDL3 video driver BEFORE any window
+    // or context is created. On the target this is what swaps Weston for a
+    // direct DRM/KMS presentation (needs root/udev-tagged DRM access and no
+    // running display server); default on the dev PC is X11.
+    if (args.videoDriver) {
+        SDL_SetHint(SDL_HINT_VIDEO_DRIVER, args.videoDriver);
+        std::fprintf(stderr, "[video] SDL video driver: %s\n", args.videoDriver);
+    }
+
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "error: SDL_Init failed: %s\n", SDL_GetError());
         return 1;
@@ -307,23 +396,25 @@ int main(int argc, char** argv)
     if (!vp.init(window, winW, winH))
         return 1;
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-    ImGui_ImplSDL3_InitForVulkan(window);
-    ImGui_ImplVulkan_InitInfo ii{};
-    auto h = vp.handles();
-    ii.ApiVersion = VK_API_VERSION_1_1;
-    ii.Instance = h.instance;
-    ii.PhysicalDevice = h.physical;
-    ii.Device = h.device;
-    ii.QueueFamily = h.queueFamily;
-    ii.Queue = h.queue;
-    ii.DescriptorPoolSize = 16;  // backend builds its own pool
-    ii.MinImageCount = 2;
-    ii.ImageCount = h.imageCount;
-    ii.PipelineInfoMain.RenderPass = (VkRenderPass)vp.renderPass();
-    ImGui_ImplVulkan_Init(&ii);
+    auto h = vp.handles();  // EGL/QKMS pinning below needs it regardless of mode
+    if (!args.gfn) {  // direct-pipeline mode never runs the ImGui Vulkan layer
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+        ImGui_ImplSDL3_InitForVulkan(window);
+        ImGui_ImplVulkan_InitInfo ii{};
+        ii.ApiVersion = VK_API_VERSION_1_1;
+        ii.Instance = h.instance;
+        ii.PhysicalDevice = h.physical;
+        ii.Device = h.device;
+        ii.QueueFamily = h.queueFamily;
+        ii.Queue = h.queue;
+        ii.DescriptorPoolSize = 16;  // backend builds its own pool
+        ii.MinImageCount = 2;
+        ii.ImageCount = h.imageCount;
+        ii.PipelineInfoMain.RenderPass = (VkRenderPass)vp.renderPass();
+        ImGui_ImplVulkan_Init(&ii);
+    }
 #else
     SDL_GLContext gl = SDL_GL_CreateContext(window);
     if (!gl || !SDL_GL_MakeCurrent(window, gl)) {
@@ -339,12 +430,20 @@ int main(int argc, char** argv)
         ui::reportRenderer(reinterpret_cast<const char*>(r));
 #endif
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-    ImGui_ImplSDL3_InitForOpenGL(window, gl);
-    ImGui_ImplOpenGL3_Init("#version 300 es");
+    if (!args.gfn) {  // direct-pipeline mode never runs the ImGui GLES layer
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+        ImGui_ImplSDL3_InitForOpenGL(window, gl);
+        ImGui_ImplOpenGL3_Init("#version 300 es");
+    }
 #endif  // IMWB_BACKEND_VULKAN
+
+    // Direct-pipeline mode (--gfn) never runs ImGui: the whole UI layer is
+    // disconnected — no toolbar, no stats, no windowed scene. The web frame
+    // goes straight from the FDO export to the window surface below.
+    if (args.gfn)
+        std::fprintf(stderr, "[gfn] direct pipeline: ImGui UI layer disconnected\n");
 
     // Minimal attribute-less fullscreen blit for the kiosk direct path: the
     // exported web frame goes straight to the window surface, no ImGui.
@@ -489,7 +588,8 @@ int main(int argc, char** argv)
                 std::fprintf(stderr, "[input] %s '%s'\n",
                              ev.type == SDL_EVENT_TEXT_INPUT ? "TEXT_INPUT" : "TEXT_EDITING",
                              ev.text.text);
-            ImGui_ImplSDL3_ProcessEvent(&ev);
+            if (!args.gfn)  // ImGui is completely disconnected in direct-pipeline mode
+                ImGui_ImplSDL3_ProcessEvent(&ev);
 
             switch (ev.type) {
             case SDL_EVENT_QUIT:
@@ -533,15 +633,24 @@ int main(int argc, char** argv)
             case SDL_EVENT_KEY_DOWN:
             case SDL_EVENT_KEY_UP: {
                 const uint16_t mods = ev.key.mod;
-                if (ev.key.down && ev.key.scancode == SDL_SCANCODE_F11) {  // kiosk toggle
+                // Direct-pipeline (GFN/kiosk) exit: Ctrl+Q quits. In kiosk the
+                // WM can never close us (see CLOSE_REQUESTED), so Ctrl+W is the
+                // second escape hatch there.
+                if (ev.key.down && (mods & SDL_KMOD_CTRL) &&
+                    (ev.key.scancode == SDL_SCANCODE_Q ||
+                     (kioskBase && ev.key.scancode == SDL_SCANCODE_W)))
+                    goto done;
+                // UI shortcuts (kiosk toggle / stats / URL-bar) are dead in
+                // direct-pipeline mode: there is no ImGui layer to drive.
+                if (!args.gfn && ev.key.down && ev.key.scancode == SDL_SCANCODE_F11) {  // kiosk toggle
                     setKiosk(!kiosk);
                     break;
                 }
-                if (ev.key.down && ev.key.scancode == SDL_SCANCODE_F3) {  // stats overlay
+                if (!args.gfn && ev.key.down && ev.key.scancode == SDL_SCANCODE_F3) {  // stats overlay
                     showStats = !showStats;
                     break;
                 }
-                if (ev.key.down && ev.key.scancode == SDL_SCANCODE_L && (mods & SDL_KMOD_CTRL)) {
+                if (!args.gfn && ev.key.down && ev.key.scancode == SDL_SCANCODE_L && (mods & SDL_KMOD_CTRL)) {
                     browser.focusUrlRequest = true;  // focus URL bar
                     break;
                 }
@@ -552,7 +661,7 @@ int main(int argc, char** argv)
                 // leave the page's <input> (DDG's search box) untypeable. WantTextInput
                 // is true only while an ImGui widget holds an active IME/typing
                 // session, which is the precise condition for keeping keys in the UI.
-                if (ImGui::GetIO().WantTextInput && !(mods & (SDL_KMOD_CTRL | SDL_KMOD_ALT)))
+                if (!args.gfn && ImGui::GetIO().WantTextInput && !(mods & (SDL_KMOD_CTRL | SDL_KMOD_ALT)))
                     break;
                 browser.key(ev.key.scancode, mods, ev.key.down);
                 break;
@@ -645,34 +754,40 @@ int main(int argc, char** argv)
 
         // Windowed path: draw through ImGui's Vulkan renderer. In kiosk-with-
         // stats the web frame is the only thing on the background list.
-        ImTextureID webTex = ImTextureID(0);
-        if (VkDmabufFrame* fr = browser.takeDmabufFrame())
-            webTex = vp.importFrame(*fr);  // 0 on import failure
-        ImGui_ImplVulkan_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
-        ImGui::NewFrame();
-        const float toolbarLogicalVk = kiosk ? 0.f : ui::kToolbarHeight;
-        if (std::getenv("IMWB_VKGREEN"))  // diagnostic: is the image layer drawn?
-            ImGui::GetBackgroundDrawList()->AddRectFilled(
-                ImVec2(0.f, 0.f), ImVec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y),
-                IM_COL32(0, 160, 0, 255));
-        if (webTex)
-            ImGui::GetBackgroundDrawList()->AddImage(webTex, ImVec2(0.f, toolbarLogicalVk),
-                                                     ImVec2(ImGui::GetIO().DisplaySize.x,
-                                                            ImGui::GetIO().DisplaySize.y));
-        if (!kiosk || showStats) {
-            if (ui::drawToolbar(browser, kiosk) == ui::Action::ToggleKiosk)
-                setKiosk(!kiosk);
-            ui::drawStatsOverlay(showStats, browser);
+        // Never taken in direct-pipeline mode: the kiosk direct path above
+        // always fires (kiosk is forced true and F3/stats stay off).
+        if (!args.gfn) {
+            ImTextureID webTex = ImTextureID(0);
+            if (VkDmabufFrame* fr = browser.takeDmabufFrame())
+                webTex = vp.importFrame(*fr);  // 0 on import failure
+            ImGui_ImplVulkan_NewFrame();
+            ImGui_ImplSDL3_NewFrame();
+            ImGui::NewFrame();
+            const float toolbarLogicalVk = kiosk ? 0.f : ui::kToolbarHeight;
+            if (std::getenv("IMWB_VKGREEN"))  // diagnostic: is the image layer drawn?
+                ImGui::GetBackgroundDrawList()->AddRectFilled(
+                    ImVec2(0.f, 0.f), ImVec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y),
+                    IM_COL32(0, 160, 0, 255));
+            if (webTex)
+                ImGui::GetBackgroundDrawList()->AddImage(webTex, ImVec2(0.f, toolbarLogicalVk),
+                                                         ImVec2(ImGui::GetIO().DisplaySize.x,
+                                                                ImGui::GetIO().DisplaySize.y));
+            if (!kiosk || showStats) {
+                if (ui::drawToolbar(browser, kiosk) == ui::Action::ToggleKiosk)
+                    setKiosk(!kiosk);
+                ui::drawStatsOverlay(showStats, browser);
+            }
+            ui::drawHardwareWarnings();  // debug builds: red banner on software fallback
+            ImGui::Render();
+            syncTextInput(window, ImGui::GetIO());
+            vp.drawFrame(pixW, pixH);
+            browser.afterPresent();
+            lastPresentUs = g_get_monotonic_time();
+            hadEvents = false;
+            continue;  // Vulkan build renders everything above
         }
-        ui::drawHardwareWarnings();  // debug builds: red banner on software fallback
-        ImGui::Render();
-        syncTextInput(window, ImGui::GetIO());
-        vp.drawFrame(pixW, pixH);
-        browser.afterPresent();
-        lastPresentUs = g_get_monotonic_time();
-        hadEvents = false;
-        continue;  // Vulkan build renders everything above
+        SDL_Delay(2);  // direct-pipeline idle (no frame, no UI layer)
+        continue;
 #else
         // Kiosk direct path: blit the web frame straight to the window
         // surface with a minimal shader — no ImGui, no extra scene. This is
@@ -726,6 +841,8 @@ int main(int argc, char** argv)
 #endif  // !IMWB_BACKEND_VULKAN
 
 #ifndef IMWB_BACKEND_VULKAN
+        [[maybe_unused]] gint64 ts3 = 0, ts4 = 0;  // set by the windowed GLES tail below
+        if (!args.gfn) {  // windowed ImGui scene only; direct-pipeline mode never reaches this
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
@@ -764,9 +881,13 @@ int main(int argc, char** argv)
         glClearColor(0.f, 0.f, 0.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        gint64 ts3 = stats ? g_get_monotonic_time() : 0;
+        ts3 = stats ? g_get_monotonic_time() : 0;
         SDL_GL_SwapWindow(window);
-        gint64 ts4 = stats ? g_get_monotonic_time() : 0;
+        ts4 = stats ? g_get_monotonic_time() : 0;
+        } else {  // direct-pipeline idle: no web frame exported yet, no UI layer
+            SDL_Delay(2);
+            continue;
+        }
 #endif  // !IMWB_BACKEND_VULKAN (windowed GLES render tail)
         browser.afterPresent();
         lastPresentUs = g_get_monotonic_time();
@@ -810,14 +931,18 @@ int main(int argc, char** argv)
 done:
     browser.shutdown();
 #ifdef IMWB_BACKEND_VULKAN
-    ImGui_ImplVulkan_Shutdown();
+    if (!args.gfn)
+        ImGui_ImplVulkan_Shutdown();
     vp.shutdown();
 #else
-    ImGui_ImplOpenGL3_Shutdown();
+    if (!args.gfn)
+        ImGui_ImplOpenGL3_Shutdown();
     SDL_GL_DestroyContext(gl);
 #endif  // IMWB_BACKEND_VULKAN
-    ImGui_ImplSDL3_Shutdown();
-    ImGui::DestroyContext();
+    if (!args.gfn) {  // direct-pipeline mode never created an ImGui context
+        ImGui_ImplSDL3_Shutdown();
+        ImGui::DestroyContext();
+    }
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;

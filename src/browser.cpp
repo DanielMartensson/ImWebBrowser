@@ -359,7 +359,15 @@ void Browser::applySettings()
 #endif
 #if ENABLE_AUTOPLAY
     webkit_settings_set_media_playback_requires_user_gesture(s, false);
+    std::fprintf(stderr, "[autoplay] media playback requires no user gesture (ENABLE_AUTOPLAY)\n");
 #endif
+    // Runtime GFN mode (--gfn / IMWB_GFN_BRIDGE=1): the game stream must start
+    // without a user gesture. Mirrors the build-time ENABLE_AUTOPLAY switch so
+    // the kiosk preset works on a stock build.
+    if (g_getenv("IMWB_GFN_BRIDGE")) {
+        webkit_settings_set_media_playback_requires_user_gesture(s, false);
+        std::fprintf(stderr, "[autoplay] media playback requires no user gesture (GFN bridge)\n");
+    }
 #if ENABLE_AUDIO != 1
     webkit_settings_set_enable_webaudio(s, ENABLE_AUDIO);
 #endif
