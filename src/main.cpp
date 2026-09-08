@@ -353,6 +353,11 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "[video] SDL video driver: %s\n", args.videoDriver);
     }
 
+    // Under Weston (target) SDL only draws the window frame / title bar when a
+    // decoration path is active. Prefer libdecor explicitly so the frame
+    // appears even if xdg-decoration arrives late; a no-op on X11/KMS.
+    SDL_SetHint(SDL_HINT_VIDEO_WAYLAND_PREFER_LIBDECOR, "1");
+
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "error: SDL_Init failed: %s\n", SDL_GetError());
         return 1;
