@@ -574,6 +574,12 @@ void Browser::gfnBridgeEval(const char* js)
 
 void Browser::gfnBridgePollSafe()
 {
+    // Skip while a navigation/load is in flight: there is nothing to arm yet,
+    // and an IPC evaluate_javascript into a page that is already saturating
+    // the main thread (the GFN OAuth-portal transition on the weak A35) only
+    // adds jank. arm() resumes as soon as the page settles.
+    if (loading || progress < 1.f)
+        return;
     // Keep calling arm() so channels open as soon as the stream PC exists;
     // status() is only for console visibility (it piggybacks on the same poll).
     gfnBridgeEval("window.__imwbInput && window.__imwbInput.arm && window.__imwbInput.arm();");
