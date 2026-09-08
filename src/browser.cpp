@@ -606,7 +606,10 @@ void Browser::startGfnInputBridge()
     if (!gfnBridgeInjected_) {
         gfnBridgeInjected_ = true;
         g_message("[gfnbridge] injection sent; polling for stream connection");
-        g_timeout_add(500, G_SOURCE_FUNC(gfnBridgePoll), this);
+        // 2000 ms: a stream PC takes >20 s to appear during a game boot, so a
+        // 500 ms poll only hammers the page JS main thread (IPC eval round-trip)
+        // and adds visible jank on the A35 while the GFN mall login is animating.
+        g_timeout_add(2000, G_SOURCE_FUNC(gfnBridgePoll), this);
     }
 }
 
