@@ -69,6 +69,7 @@ Environment:
   IMWB_BUILD_DIR=...      build dir                (default: build)
   IMWB_VIDEO_DECODER=...  force a GStreamer decoder (e.g. v4l2slh264dec)
   IMWB_GFN_BRIDGE=1       arm the GFN input bridge (implied by --gfn)
+  IMWB_BLOCK_TELEMETRY=0  disable the GFN telemetry-content-filter (default: on in --gfn mode)
   IMWB_DEBUG_INPUT=1      log SDL input events
 
 Examples:

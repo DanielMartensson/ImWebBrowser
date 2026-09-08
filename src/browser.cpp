@@ -30,6 +30,46 @@ static Browser* selfOf(void* data) { return static_cast<Browser*>(data); }
 // network stack issues and replay/fix responses (see mitm_proxy.py).
 static constexpr const char* kMitmProxyUri = "http://127.0.0.1:4843";
 
+static const char kGfnTelemetryRules[] = R"([
+  {"trigger":{"url-filter":"events.telemetry.data.nvidia.com"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":"prod.otel.kaizen.nvidia.com"},"action":{"type":"block"}},
+  {"trigger":{"url-filter":"feedbacks.telemetry.data.nvidia.com"},"action":{"type":"block"}}
+])";
+
+static void onTelemetryBlockerReady(GObject* source, GAsyncResult* result, gpointer userData)
+{
+    auto* store = WEBKIT_USER_CONTENT_FILTER_STORE(source);
+    auto* self = static_cast<Browser*>(userData);
+    GError* error = nullptr;
+    WebKitUserContentFilter* filter = webkit_user_content_filter_store_save_finish(store, result, &error);
+    g_object_unref(store);
+    if (!filter) {
+        std::fprintf(stderr, "[telemetry] content filter not available: %s\n",
+                     error ? error->message : "save aborted");
+        g_clear_error(&error);
+        return;
+    }
+    webkit_user_content_manager_add_filter(
+        webkit_web_view_get_user_content_manager(self->webView()), filter);
+    webkit_user_content_filter_unref(filter);
+    std::fprintf(stderr, "[telemetry] GFN telemetry/tracing hosts blocked (content filter active)\n");
+}
+
+static void installTelemetryBlocker(Browser* self)
+{
+    const char* blockEnv = g_getenv("IMWB_BLOCK_TELEMETRY");
+    const bool enabled = blockEnv ? g_strcmp0(blockEnv, "0") != 0
+                                  : g_getenv("IMWB_GFN_BRIDGE") != nullptr;
+    if (!enabled)
+        return;
+    g_autofree gchar* filterDir = g_build_filename(g_get_user_config_dir(), "imwebbrowser", nullptr);
+    g_mkdir_with_parents(filterDir, 0700);
+    auto* store = webkit_user_content_filter_store_new(filterDir);
+    g_autoptr(GBytes) rules = g_bytes_new_static(kGfnTelemetryRules, sizeof(kGfnTelemetryRules) - 1);
+    webkit_user_content_filter_store_save(store, "imwb-gfn-telemetry-blocker", rules, nullptr,
+                                          onTelemetryBlockerReady, self);
+}
+
 void onExportEglImage(void* data, wpe_fdo_egl_exported_image* image)
 {
     auto& self = *selfOf(data);
@@ -199,6 +239,8 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
                                 : WEBKIT_COOKIE_POLICY_ACCEPT_NO_THIRD_PARTY);
         webkit_network_session_set_itp_enabled(session, !thirdParty);
     }
+
+    installTelemetryBlocker(this);
 
     // MITM debugging hook: route every request through our logging proxy on
     // localhost and whitelist the proxy certificate when the engine complains
