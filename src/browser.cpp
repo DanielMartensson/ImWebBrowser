@@ -36,6 +36,61 @@ static const char kGfnTelemetryRules[] = R"([
   {"trigger":{"url-filter":"feedbacks.telemetry.data.nvidia.com"},"action":{"type":"block"}}
 ])";
 
+// WebGL capability probe (diagnostics): logs what context types the page
+// requests and whether real, renderable WebGL/WebGL2 contexts come back. Only
+// injected when requested (GFN mode or IMWB_WEBGL_PROBE=1).
+static const char kWebglProbeJS[] = R"JS(
+(() => {
+  const orig = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+    const ctx = orig.call(this, type, ...args);
+    try {
+      const w = this.width || 300, h = this.height || 150;
+      if (/^webgl/.test(type)) {
+        let ok = ctx ? 'ok' : 'NULL';
+        if (ctx && ok === 'ok') {
+          try {
+            if (type === 'webgl2') {
+              const sh = ctx.createShader(ctx.FRAGMENT_SHADER);
+              ctx.shaderSource(sh, 'void main() { gl_FragColor = vec4(1.0,0.0,0.0,1.0); }');
+              ctx.compileShader(sh);
+              ok = ctx.getShaderParameter(sh, ctx.COMPILE_STATUS) ? 'compile-ok' : 'compile-FAIL';
+              ctx.getShaderInfoLog(sh);
+            } else {
+              ctx.clearColor(1, 0, 0, 1);
+              ctx.clear(ctx.COLOR_BUFFER_BIT);
+              ok = ctx.getError() === 0 ? 'render-ok' : 'render-FAIL-' + ctx.getError();
+            }
+          } catch (e) { ok = 'threw ' + e.name + ': ' + e.message; }
+        }
+        console.log('[webglprobe] ctx ' + type + ' ' + ok.toLowerCase() +
+          ' size=' + w + 'x' + h + ' lost=' + (ctx ? ctx.isContextLost() : '-'));
+      }
+    } catch (e) {}
+    return ctx;
+  };
+  try {
+    const c2 = document.createElement('canvas');
+    const g2 = c2.getContext('webgl2');
+    const c1 = document.createElement('canvas');
+    const g1 = c1.getContext('webgl');
+    console.log('[webglprobe] feature webgl2=' + (g2 ? 'yes' : 'no') +
+      ' webgl=' + (g1 ? 'yes' : 'no'));
+  } catch (e) { console.log('[webglprobe] feature threw: ' + e.message); }
+})();
+)JS";
+
+static void installWebglProbe(Browser* self)
+{
+    auto* script = webkit_user_script_new(
+        kWebglProbeJS, WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+        WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, nullptr, nullptr);
+    webkit_user_content_manager_add_script(
+        webkit_web_view_get_user_content_manager(self->webView()), script);
+    webkit_user_script_unref(script);
+    std::fprintf(stderr, "[webglprobe] WebGL probe script armed\n");
+}
+
 static void onTelemetryBlockerReady(GObject* source, GAsyncResult* result, gpointer userData)
 {
     auto* store = WEBKIT_USER_CONTENT_FILTER_STORE(source);
@@ -241,6 +296,9 @@ bool Browser::init(EGLDisplay eglDisplay, int width, int height, const char* sta
     }
 
     installTelemetryBlocker(this);
+
+    if (g_getenv("IMWB_GFN_BRIDGE") || g_getenv("IMWB_WEBGL_PROBE"))
+        installWebglProbe(this);
 
     // MITM debugging hook: route every request through our logging proxy on
     // localhost and whitelist the proxy certificate when the engine complains
