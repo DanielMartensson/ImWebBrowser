@@ -42,6 +42,13 @@ static const char kGfnTelemetryRules[] = R"([
 static const char kWebglProbeJS[] = R"JS(
 (() => {
   const orig = HTMLCanvasElement.prototype.getContext;
+  const glInfo = (ctx) => {
+    try {
+      return ' renderer=' + (ctx.getParameter(ctx.RENDERER) || '?') +
+        ' vendor=' + (ctx.getParameter(ctx.VENDOR) || '?') +
+        ' version=' + (ctx.getParameter(ctx.VERSION) || '?');
+    } catch (e) { return ' glinfo-error'; }
+  };
   HTMLCanvasElement.prototype.getContext = function(type, ...args) {
     const ctx = orig.call(this, type, ...args);
     try {
@@ -64,7 +71,8 @@ static const char kWebglProbeJS[] = R"JS(
           } catch (e) { ok = 'threw ' + e.name + ': ' + e.message; }
         }
         console.log('[webglprobe] ctx ' + type + ' ' + ok.toLowerCase() +
-          ' size=' + w + 'x' + h + ' lost=' + (ctx ? ctx.isContextLost() : '-'));
+          ' size=' + w + 'x' + h + ' lost=' + (ctx ? ctx.isContextLost() : '-') +
+          (ctx && ok !== 'NULL' ? glInfo(ctx) : ''));
       }
     } catch (e) {}
     return ctx;
@@ -75,7 +83,8 @@ static const char kWebglProbeJS[] = R"JS(
     const c1 = document.createElement('canvas');
     const g1 = c1.getContext('webgl');
     console.log('[webglprobe] feature webgl2=' + (g2 ? 'yes' : 'no') +
-      ' webgl=' + (g1 ? 'yes' : 'no'));
+      ' webgl=' + (g1 ? 'yes' : 'no') +
+      (g2 ? glInfo(g2) : ''));
   } catch (e) { console.log('[webglprobe] feature threw: ' + e.message); }
 })();
 )JS";
