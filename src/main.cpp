@@ -188,6 +188,25 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "[gfn] input bridge armed (IMWB_GFN_BRIDGE=1)\n");
     }
 
+    // Serial Skia tile painting: WebKit paints the tile grid with several
+    // worker threads at once, which on a weak multicore target (STM32MP257F:
+    // dual A35 + small Vivante GPU) bursts both cores + GPU at the same time
+    // on big repaints. With IMWB_SERIAL_PAINT the tile painter instead takes
+    // one tile at a time - single CPU thread, no GPU tile threads - smoothing
+    // the spikes at some compositing-throughput cost. Reloads per run with
+    // IMWB_SERIAL_PAINT=0/1 without rebuilding (the recipe bakes it ON).
+#if IMWB_SERIAL_PAINT
+    const char* serialEnv = g_getenv("IMWB_SERIAL_PAINT");
+    const bool serialPaint = serialEnv ? g_strcmp0(serialEnv, "0") != 0 : true;
+    if (serialPaint) {
+        g_setenv("WEBKIT_SKIA_CPU_PAINTING_THREADS", "1", FALSE);
+        g_setenv("WEBKIT_SKIA_GPU_PAINTING_THREADS", "0", FALSE);
+        std::fprintf(stderr,
+                     "[webkit] serial tile painting (one CPU thread; "
+                     "IMWB_SERIAL_PAINT=0 to disable)\n");
+    }
+#endif
+
     // Preferred GStreamer video decoder (IMWB_VIDEO_DECODER, wired in via
     // config.h). Forced to MAX rank before WebKit boots GStreamer so the
     // chosen element becomes the primary decoder for its codec. Empty builds

@@ -108,6 +108,13 @@ option(ENABLE_BENCHMARK_HARNESS "Build the automated WebGL Aquarium benchmark ha
 # the --gfn kiosk preset works on any build; cost is a few KB of JS.
 option(ENABLE_GFN_INPUT_BRIDGE "Build the GeForce NOW input bridge (WebRTC data-channel input forwarding)" ON)
 
+# Serial Skia tile painting (one CPU paint thread, no GPU tile threads). On
+# weak multicore targets (STM32MP257F: dual A35 + small Vivante GPU) WebKit's
+# default parallel tile painting can burst all cores at once on big repaints;
+# serial painting smooths those spikes at some compositing-throughput cost.
+# A/B testable per run: IMWB_SERIAL_PAINT=0/1 overrides the build value.
+option(IMWB_SERIAL_PAINT "Paint WebKit/Skia tiles serially (one thread at a time)" OFF)
+
 # Preferred GStreamer video decoder, applied at runtime via
 # GST_PLUGIN_FEATURE_RANK when ENABLE_GSTREAMER is on. Empty (default) leaves
 # GStreamer's own ranking untouched (usually lifts avdec_h264 to primary); set
@@ -145,7 +152,7 @@ message(STATUS "  core     : js=${ENABLE_JAVASCRIPT} webgl=${ENABLE_WEBGL} canva
 message(STATUS "  a11y     : caret=${ENABLE_CARET_BROWSING} spatial=${ENABLE_SPATIAL_NAVIGATION} tabcycle=${ENABLE_TAB_FOCUS_CYCLE} resize=${ENABLE_TEXT_AREAS_RESIZE} gestures=${ENABLE_BF_GESTURES}")
 message(STATUS "  media    : playback=${ENABLE_MEDIA} audio=${ENABLE_AUDIO} autoplay=${ENABLE_AUTOPLAY} mediacaps=${ENABLE_MEDIA_CAPABILITIES} eme=${ENABLE_ENCRYPTED_MEDIA} gstreamer=${ENABLE_GSTREAMER}")
 message(STATUS "  hw       : mediaHwTypes='${IMWB_MEDIA_HW_TYPES}' decoder='${IMWB_VIDEO_DECODER}'")
-message(STATUS "  misc     : webrtc=${ENABLE_WEBRTC} devtools=${ENABLE_DEVELOPER_EXTRAS} bench=${ENABLE_BENCHMARK_HARNESS} gfninput=${ENABLE_GFN_INPUT_BRIDGE}")
+message(STATUS "  misc     : webrtc=${ENABLE_WEBRTC} devtools=${ENABLE_DEVELOPER_EXTRAS} bench=${ENABLE_BENCHMARK_HARNESS} gfninput=${ENABLE_GFN_INPUT_BRIDGE} serialpaint=${IMWB_SERIAL_PAINT}")
 message(STATUS "")
 
 # ---------------------------------------------------------------------------

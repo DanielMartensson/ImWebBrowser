@@ -24,6 +24,10 @@
 #cmakedefine01 ENABLE_BENCHMARK_HARNESS
 #cmakedefine01 ENABLE_GFN_INPUT_BRIDGE
 
+// Serial Skia tile painting: paint one tile at a time (single CPU thread, GPU
+// tile threads off) instead of bursting the whole tile grid at once.
+#cmakedefine01 IMWB_SERIAL_PAINT
+
 // Preferred GStreamer video decoder to force to MAX rank at startup
 // (empty string = leave GStreamer's own ranking; see IMWB_VIDEO_DECODER).
 #define IMWB_VIDEO_DECODER "@IMWB_VIDEO_DECODER@"
